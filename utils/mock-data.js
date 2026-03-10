@@ -17,6 +17,42 @@ function simulateGraphAPIResponse(method, path, data, queryParams) {
     if (path.includes('messages') && !path.includes('sendMail')) {
       // Simulate a successful email list/search response
       if (path.includes('/messages/')) {
+        // Check if this is an attachments request
+        if (path.includes('/attachments/')) {
+          // Single attachment response
+          return {
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            id: "simulated-attachment-id-1",
+            name: "report.txt",
+            contentType: "text/plain",
+            size: 1024,
+            isInline: false,
+            contentBytes: Buffer.from("This is the content of the simulated attachment file.").toString('base64')
+          };
+        }
+        if (path.includes('/attachments')) {
+          // Attachment list response
+          return {
+            value: [
+              {
+                '@odata.type': '#microsoft.graph.fileAttachment',
+                id: "simulated-attachment-id-1",
+                name: "report.txt",
+                contentType: "text/plain",
+                size: 1024,
+                isInline: false
+              },
+              {
+                '@odata.type': '#microsoft.graph.fileAttachment',
+                id: "simulated-attachment-id-2",
+                name: "spreadsheet.xlsx",
+                contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                size: 25600,
+                isInline: false
+              }
+            ]
+          };
+        }
         // Single email response
         return {
           id: "simulated-email-id",
