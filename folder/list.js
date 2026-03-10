@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * List folders handler
@@ -161,11 +162,11 @@ function formatFolderList(folders, includeItemCounts) {
   
   // Format each folder
   const folderLines = sortedFolders.map(folder => {
-    let folderInfo = folder.displayName;
+    let folderInfo = sanitizeMetadata(folder.displayName);
     
     // Add parent folder info if available
     if (folder.parentFolder) {
-      folderInfo += ` (in ${folder.parentFolder})`;
+      folderInfo += ` (in ${sanitizeMetadata(folder.parentFolder)})`;
     }
     
     // Add item counts if requested
@@ -231,7 +232,7 @@ function formatFolderHierarchy(folders, includeItemCounts) {
     if (!folder) return '';
     
     const indent = '  '.repeat(level);
-    let line = `${indent}${folder.displayName}`;
+    let line = `${indent}${sanitizeMetadata(folder.displayName)}`;
     
     // Add item counts if requested
     if (includeItemCounts) {

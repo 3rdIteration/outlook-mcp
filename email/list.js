@@ -5,6 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * List emails handler
@@ -47,7 +48,7 @@ async function handleListEmails(args) {
       const date = new Date(email.receivedDateTime).toLocaleString();
       const readStatus = email.isRead ? '' : '[UNREAD] ';
       
-      return `${index + 1}. ${readStatus}${date} - From: ${sender.name} (${sender.address})\nSubject: ${email.subject}\nID: ${email.id}\n`;
+      return `${index + 1}. ${readStatus}${date} - From: ${sanitizeMetadata(sender.name)} (${sanitizeMetadata(sender.address)})\nSubject: ${sanitizeMetadata(email.subject)}\nID: ${email.id}\n`;
     }).join("\n");
     
     return {

@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * List attachments for a specific email
@@ -52,7 +53,7 @@ async function handleListAttachments(args) {
       const formatted = attachments.map((att, index) => {
         const size = formatSize(att.size);
         const inline = att.isInline ? ' (inline)' : '';
-        return `${index + 1}. ${att.name} (${att.contentType}, ${size})${inline}\n   ID: ${att.id}`;
+        return `${index + 1}. ${sanitizeMetadata(att.name)} (${sanitizeMetadata(att.contentType)}, ${size})${inline}\n   ID: ${att.id}`;
       }).join('\n');
 
       return {
@@ -136,8 +137,8 @@ async function handleDownloadAttachment(args) {
         };
       }
 
-      const name = attachment.name || 'unknown';
-      const contentType = attachment.contentType || 'application/octet-stream';
+      const name = sanitizeMetadata(attachment.name || 'unknown');
+      const contentType = sanitizeMetadata(attachment.contentType || 'application/octet-stream');
       const size = formatSize(attachment.size);
 
       // Handle different attachment types
@@ -319,7 +320,7 @@ async function handleDownloadAttachments(args) {
           const type = att['@odata.type'] === '#microsoft.graph.itemAttachment'
             ? 'Outlook item' : att['@odata.type'] === '#microsoft.graph.referenceAttachment'
             ? 'cloud file link' : 'non-downloadable';
-          return `- ${att.name || 'unknown'} (${type})`;
+          return `- ${sanitizeMetadata(att.name || 'unknown')} (${type})`;
         }).join('\n');
 
         return {
@@ -335,8 +336,8 @@ async function handleDownloadAttachments(args) {
       const savedFiles = [];
 
       for (const att of fileAttachments) {
-        const name = att.name || 'unknown';
-        const contentType = att.contentType || 'application/octet-stream';
+        const name = sanitizeMetadata(att.name || 'unknown');
+        const contentType = sanitizeMetadata(att.contentType || 'application/octet-stream');
         const size = att.size || 0;
 
         // Save to disk if saveToPath is specified
