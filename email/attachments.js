@@ -4,6 +4,8 @@
  * Provides listing and downloading of email attachments
  * via the Microsoft Graph API.
  */
+const fs = require('fs');
+const path = require('path');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 
@@ -234,6 +236,207 @@ async function handleDownloadAttachment(args) {
 }
 
 /**
+ * Download all attachments from an email
+ * @param {object} args - Tool arguments
+ * @param {string} args.emailId - Email ID (required)
+ * @param {string} args.saveToPath - Optional local directory path to save attachments to
+ * @returns {object} - MCP response with attachment details and content
+ */
+async function handleDownloadAttachments(args) {
+  const emailId = args.emailId;
+  const saveToPath = args.saveToPath;
+
+  if (!emailId) {
+    return {
+      content: [{
+        type: "text",
+        text: "Email ID is required."
+      }]
+    };
+  }
+
+  // Validate saveToPath if provided
+  if (saveToPath) {
+    try {
+      // Resolve to absolute path and check it exists
+      const resolvedPath = path.resolve(saveToPath);
+      if (!fs.existsSync(resolvedPath)) {
+        return {
+          content: [{
+            type: "text",
+            text: `The directory "${saveToPath}" does not exist. Please create it first or specify a valid path.`
+          }]
+        };
+      }
+      const stats = fs.statSync(resolvedPath);
+      if (!stats.isDirectory()) {
+        return {
+          content: [{
+            type: "text",
+            text: `"${saveToPath}" is not a directory. Please specify a directory path.`
+          }]
+        };
+      }
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error accessing path "${saveToPath}": ${error.message}`
+        }]
+      };
+    }
+  }
+
+  try {
+    const accessToken = await ensureAuthenticated();
+
+    const endpoint = `me/messages/${encodeURIComponent(emailId)}/attachments`;
+
+    try {
+      const response = await callGraphAPI(accessToken, 'GET', endpoint);
+
+      const attachments = response.value || [];
+
+      if (attachments.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: "This email has no attachments."
+          }]
+        };
+      }
+
+      // Filter to file attachments only (those with contentBytes)
+      const fileAttachments = attachments.filter(
+        att => att['@odata.type'] === '#microsoft.graph.fileAttachment' && att.contentBytes
+      );
+      const otherAttachments = attachments.filter(
+        att => att['@odata.type'] !== '#microsoft.graph.fileAttachment' || !att.contentBytes
+      );
+
+      if (fileAttachments.length === 0) {
+        const otherInfo = otherAttachments.map(att => {
+          const type = att['@odata.type'] === '#microsoft.graph.itemAttachment'
+            ? 'Outlook item' : att['@odata.type'] === '#microsoft.graph.referenceAttachment'
+            ? 'cloud file link' : 'non-downloadable';
+          return `- ${att.name || 'unknown'} (${type})`;
+        }).join('\n');
+
+        return {
+          content: [{
+            type: "text",
+            text: `This email has ${attachments.length} attachment(s), but none are downloadable file attachments:\n${otherInfo}`
+          }]
+        };
+      }
+
+      const results = [];
+      const savedFiles = [];
+
+      for (const att of fileAttachments) {
+        const name = att.name || 'unknown';
+        const contentType = att.contentType || 'application/octet-stream';
+        const size = att.size || 0;
+
+        // Save to disk if saveToPath is specified
+        if (saveToPath) {
+          try {
+            const resolvedDir = path.resolve(saveToPath);
+            // Sanitize filename to prevent path traversal
+            const safeName = path.basename(name);
+            const filePath = path.join(resolvedDir, safeName);
+            const fileBuffer = Buffer.from(att.contentBytes, 'base64');
+            fs.writeFileSync(filePath, fileBuffer);
+            savedFiles.push({ name: safeName, path: filePath, size });
+          } catch (writeError) {
+            results.push(`- ${name} (${contentType}, ${formatSize(size)}): Failed to save - ${writeError.message}`);
+            continue;
+          }
+        }
+
+        results.push({
+          name,
+          contentType,
+          size,
+          contentBytes: att.contentBytes
+        });
+      }
+
+      // Build response text
+      let responseText = '';
+
+      if (saveToPath && savedFiles.length > 0) {
+        const resolvedDir = path.resolve(saveToPath);
+        responseText += `Saved ${savedFiles.length} attachment(s) to ${resolvedDir}:\n\n`;
+        responseText += savedFiles.map((f, i) =>
+          `${i + 1}. ${f.name} (${formatSize(f.size)}) → ${f.path}`
+        ).join('\n');
+      } else {
+        responseText += `Downloaded ${results.length} attachment(s):\n\n`;
+        responseText += results.map((att, i) => {
+          if (typeof att === 'string') return att; // Error message
+          return `${i + 1}. ${att.name} (${att.contentType}, ${formatSize(att.size)})\n   Base64 content length: ${att.contentBytes.length} chars`;
+        }).join('\n');
+      }
+
+      // Note about non-file attachments
+      if (otherAttachments.length > 0) {
+        responseText += `\n\nNote: ${otherAttachments.length} non-downloadable attachment(s) were skipped (item or reference attachments).`;
+      }
+
+      // Build content array - include attachment data as structured text when not saving
+      const content = [{ type: "text", text: responseText }];
+
+      if (!saveToPath) {
+        for (const att of results) {
+          if (typeof att === 'string') continue; // Skip error messages
+          content.push({
+            type: "text",
+            text: `\n--- Attachment: ${att.name} (${att.contentType}, ${formatSize(att.size)}) ---\n${att.contentBytes}\n--- End: ${att.name} ---`
+          });
+        }
+      }
+
+      return { content };
+    } catch (error) {
+      console.error(`Error downloading attachments: ${error.message}`);
+
+      if (error.message.includes("doesn't belong to the targeted mailbox")) {
+        return {
+          content: [{
+            type: "text",
+            text: "The email ID seems invalid or doesn't belong to your mailbox. Please try with a different email ID."
+          }]
+        };
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: `Failed to download attachments: ${error.message}`
+        }]
+      };
+    }
+  } catch (error) {
+    if (error.message === 'Authentication required') {
+      return {
+        content: [{
+          type: "text",
+          text: "Authentication required. Please use the 'authenticate' tool first."
+        }]
+      };
+    }
+
+    return {
+      content: [{
+        type: "text",
+        text: `Error accessing attachments: ${error.message}`
+      }]
+    };
+  }
+}
+
+/**
  * Format file size to human-readable string
  */
 function formatSize(bytes) {
@@ -246,5 +449,6 @@ function formatSize(bytes) {
 
 module.exports = {
   handleListAttachments,
-  handleDownloadAttachment
+  handleDownloadAttachment,
+  handleDownloadAttachments
 };

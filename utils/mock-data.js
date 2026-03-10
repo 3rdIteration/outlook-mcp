@@ -31,7 +31,7 @@ function simulateGraphAPIResponse(method, path, data, queryParams) {
           };
         }
         if (path.includes('/attachments')) {
-          // Attachment list response
+          // Attachment list response (with contentBytes for download-all)
           return {
             value: [
               {
@@ -40,7 +40,8 @@ function simulateGraphAPIResponse(method, path, data, queryParams) {
                 name: "report.txt",
                 contentType: "text/plain",
                 size: 1024,
-                isInline: false
+                isInline: false,
+                contentBytes: Buffer.from("This is the content of the simulated attachment file.").toString('base64')
               },
               {
                 '@odata.type': '#microsoft.graph.fileAttachment',
@@ -48,7 +49,8 @@ function simulateGraphAPIResponse(method, path, data, queryParams) {
                 name: "spreadsheet.xlsx",
                 contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 size: 25600,
-                isInline: false
+                isInline: false,
+                contentBytes: Buffer.from("simulated binary content").toString('base64')
               }
             ]
           };

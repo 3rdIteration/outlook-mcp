@@ -1,6 +1,9 @@
-const { handleListAttachments, handleDownloadAttachment } = require('../../email/attachments');
+const { handleListAttachments, handleDownloadAttachment, handleDownloadAttachments } = require('../../email/attachments');
 const { callGraphAPI } = require('../../utils/graph-api');
 const { ensureAuthenticated } = require('../../auth');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 jest.mock('../../utils/graph-api');
 jest.mock('../../auth');
@@ -232,5 +235,223 @@ describe('handleDownloadAttachment', () => {
 
     expect(result.content[0].text).toContain('--- Content ---');
     expect(result.content[0].text).toContain(jsonContent);
+  });
+});
+
+describe('handleDownloadAttachments', () => {
+  const mockAccessToken = 'dummy_access_token';
+  let tmpDir;
+
+  beforeEach(() => {
+    callGraphAPI.mockClear();
+    ensureAuthenticated.mockClear();
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    // Create a fresh temp directory for each test
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'att-test-'));
+  });
+
+  afterEach(() => {
+    console.error.mockRestore();
+    // Clean up temp directory
+    if (tmpDir && fs.existsSync(tmpDir)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('should require emailId', async () => {
+    const result = await handleDownloadAttachments({});
+    expect(result.content[0].text).toBe('Email ID is required.');
+  });
+
+  test('should download all file attachments from an email', async () => {
+    const textContent = 'Hello from attachment';
+    const binaryContent = Buffer.from([0x89, 0x50]).toString('base64');
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockResolvedValue({
+      value: [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          id: 'att-1',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          size: textContent.length,
+          contentBytes: Buffer.from(textContent).toString('base64')
+        },
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          id: 'att-2',
+          name: 'image.png',
+          contentType: 'image/png',
+          size: 2,
+          contentBytes: binaryContent
+        }
+      ]
+    });
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123' });
+
+    expect(callGraphAPI).toHaveBeenCalledWith(
+      mockAccessToken,
+      'GET',
+      'me/messages/email-123/attachments'
+    );
+    expect(result.content[0].text).toContain('Downloaded 2 attachment(s)');
+    expect(result.content[0].text).toContain('notes.txt');
+    expect(result.content[0].text).toContain('image.png');
+    // Attachment content blocks
+    expect(result.content.length).toBe(3); // summary + 2 attachments
+    expect(result.content[1].text).toContain('--- Attachment: notes.txt');
+    expect(result.content[2].text).toContain('--- Attachment: image.png');
+  });
+
+  test('should handle email with no attachments', async () => {
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockResolvedValue({ value: [] });
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123' });
+
+    expect(result.content[0].text).toBe('This email has no attachments.');
+  });
+
+  test('should skip non-file attachments and report them', async () => {
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockResolvedValue({
+      value: [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          id: 'att-1',
+          name: 'doc.txt',
+          contentType: 'text/plain',
+          size: 5,
+          contentBytes: Buffer.from('hello').toString('base64')
+        },
+        {
+          '@odata.type': '#microsoft.graph.itemAttachment',
+          id: 'att-2',
+          name: 'Meeting Invite',
+          contentType: 'application/octet-stream',
+          size: 512
+        }
+      ]
+    });
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123' });
+
+    expect(result.content[0].text).toContain('Downloaded 1 attachment(s)');
+    expect(result.content[0].text).toContain('1 non-downloadable attachment(s) were skipped');
+  });
+
+  test('should report when only non-file attachments exist', async () => {
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockResolvedValue({
+      value: [
+        {
+          '@odata.type': '#microsoft.graph.itemAttachment',
+          id: 'att-1',
+          name: 'Forwarded Message',
+          contentType: 'application/octet-stream',
+          size: 256
+        }
+      ]
+    });
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123' });
+
+    expect(result.content[0].text).toContain('none are downloadable file attachments');
+    expect(result.content[0].text).toContain('Outlook item');
+  });
+
+  test('should save attachments to disk when saveToPath is provided', async () => {
+    const textContent = 'File content here';
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockResolvedValue({
+      value: [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          id: 'att-1',
+          name: 'saved-file.txt',
+          contentType: 'text/plain',
+          size: textContent.length,
+          contentBytes: Buffer.from(textContent).toString('base64')
+        }
+      ]
+    });
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123', saveToPath: tmpDir });
+
+    expect(result.content[0].text).toContain('Saved 1 attachment(s)');
+    expect(result.content[0].text).toContain('saved-file.txt');
+    // Only the summary text, no base64 content blocks
+    expect(result.content.length).toBe(1);
+
+    // Verify file was written
+    const savedPath = path.join(tmpDir, 'saved-file.txt');
+    expect(fs.existsSync(savedPath)).toBe(true);
+    expect(fs.readFileSync(savedPath, 'utf-8')).toBe(textContent);
+  });
+
+  test('should reject non-existent saveToPath', async () => {
+    const result = await handleDownloadAttachments({
+      emailId: 'email-123',
+      saveToPath: '/nonexistent/directory/path'
+    });
+
+    expect(result.content[0].text).toContain('does not exist');
+  });
+
+  test('should reject saveToPath that is a file, not a directory', async () => {
+    const filePath = path.join(tmpDir, 'afile.txt');
+    fs.writeFileSync(filePath, 'data');
+
+    const result = await handleDownloadAttachments({
+      emailId: 'email-123',
+      saveToPath: filePath
+    });
+
+    expect(result.content[0].text).toContain('is not a directory');
+  });
+
+  test('should sanitize filenames to prevent path traversal', async () => {
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockResolvedValue({
+      value: [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          id: 'att-1',
+          name: '../../../etc/evil.txt',
+          contentType: 'text/plain',
+          size: 4,
+          contentBytes: Buffer.from('test').toString('base64')
+        }
+      ]
+    });
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123', saveToPath: tmpDir });
+
+    expect(result.content[0].text).toContain('Saved 1 attachment(s)');
+    // File should be saved with just the basename, not the traversal path
+    const safePath = path.join(tmpDir, 'evil.txt');
+    expect(fs.existsSync(safePath)).toBe(true);
+    // The traversal path should NOT exist
+    expect(fs.existsSync(path.join(tmpDir, '..', '..', '..', 'etc', 'evil.txt'))).toBe(false);
+  });
+
+  test('should handle authentication error', async () => {
+    ensureAuthenticated.mockRejectedValue(new Error('Authentication required'));
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123' });
+
+    expect(result.content[0].text).toBe(
+      "Authentication required. Please use the 'authenticate' tool first."
+    );
+  });
+
+  test('should handle API error', async () => {
+    ensureAuthenticated.mockResolvedValue(mockAccessToken);
+    callGraphAPI.mockRejectedValue(new Error('Server Error'));
+
+    const result = await handleDownloadAttachments({ emailId: 'email-123' });
+
+    expect(result.content[0].text).toBe('Failed to download attachments: Server Error');
   });
 });
