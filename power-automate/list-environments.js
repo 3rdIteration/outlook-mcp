@@ -3,6 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List environments handler
@@ -38,13 +39,13 @@ async function handleListEnvironments(args) {
       const isDefault = props.isDefault ? ' [DEFAULT]' : '';
       const region = props.azureRegionHint || 'Unknown region';
 
-      return `${index + 1}. ${props.displayName || env.name}${isDefault}\n   ID: ${env.name}\n   Region: ${region}`;
+      return `${index + 1}. ${sanitizeMetadata(props.displayName || env.name)}${isDefault}\n   ID: ${env.name}\n   Region: ${region}`;
     }).join("\n\n");
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} environment(s):\n\n${envList}\n\nUse the environment ID (e.g., 'Default-12345') with other flow commands.`
+        text: `Found ${response.value.length} environment(s):\n\n${wrapWithBoundary(envList, 'ENVIRONMENTS')}\n\nUse the environment ID (e.g., 'Default-12345') with other flow commands.`
       }]
     };
   } catch (error) {

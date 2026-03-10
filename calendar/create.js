@@ -4,6 +4,7 @@
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { DEFAULT_TIMEZONE } = require('../config');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Create event handler
@@ -44,7 +45,7 @@ async function handleCreateEvent(args) {
     return {
       content: [{
         type: "text",
-        text: `Event '${subject}' has been successfully created.`
+        text: `Event '${sanitizeMetadata(subject)}' has been successfully created.`
       }]
     };
   } catch (error) {

@@ -3,6 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Toggle flow handler
@@ -46,7 +47,7 @@ async function handleToggleFlow(args) {
     return {
       content: [{
         type: "text",
-        text: `Flow successfully ${actionText}.\n\nFlow ID: ${flowId}\nNew State: ${enable ? 'Started' : 'Stopped'}`
+        text: `Flow successfully ${actionText}.\n\nFlow ID: ${sanitizeMetadata(flowId)}\nNew State: ${enable ? 'Started' : 'Stopped'}`
       }]
     };
   } catch (error) {

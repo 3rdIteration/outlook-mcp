@@ -3,6 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
+const { wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List flow runs handler
@@ -66,7 +67,7 @@ async function handleListRuns(args) {
     return {
       content: [{
         type: "text",
-        text: `Recent ${runs.length} run(s) for this flow:\n\n${runList}`
+        text: `Recent ${runs.length} run(s) for this flow:\n\n${wrapWithBoundary(runList, 'FLOW RUNS')}`
       }]
     };
   } catch (error) {

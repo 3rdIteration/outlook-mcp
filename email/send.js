@@ -4,6 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Send email handler
@@ -100,7 +101,7 @@ async function handleSendEmail(args) {
     return {
       content: [{ 
         type: "text", 
-        text: `Email sent successfully!\n\nSubject: ${subject}\nRecipients: ${toRecipients.length}${ccRecipients.length > 0 ? ` + ${ccRecipients.length} CC` : ''}${bccRecipients.length > 0 ? ` + ${bccRecipients.length} BCC` : ''}\nMessage Length: ${body.length} characters`
+        text: `Email sent successfully!\n\nSubject: ${sanitizeMetadata(subject)}\nRecipients: ${toRecipients.length}${ccRecipients.length > 0 ? ` + ${ccRecipients.length} CC` : ''}${bccRecipients.length > 0 ? ` + ${bccRecipients.length} BCC` : ''}\nMessage Length: ${body.length} characters`
       }]
     };
   } catch (error) {

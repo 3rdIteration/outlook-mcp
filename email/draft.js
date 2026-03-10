@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Draft email handler
@@ -56,7 +57,7 @@ async function handleDraftEmail(args) {
     return {
       content: [{
         type: "text",
-        text: `Draft created successfully!\n\nDraft ID: ${draft.id}\nSubject: ${draft.subject || '(no subject)'}\nRecipients: ${toRecipients.length}${ccRecipients.length > 0 ? ` + ${ccRecipients.length} CC` : ''}${bccRecipients.length > 0 ? ` + ${bccRecipients.length} BCC` : ''}`
+        text: `Draft created successfully!\n\nDraft ID: ${draft.id}\nSubject: ${sanitizeMetadata(draft.subject || '(no subject)')}\nRecipients: ${toRecipients.length}${ccRecipients.length > 0 ? ` + ${ccRecipients.length} CC` : ''}${bccRecipients.length > 0 ? ` + ${bccRecipients.length} BCC` : ''}`
       }]
     };
   } catch (error) {

@@ -52,6 +52,15 @@ class TokenStorage {
     }
     try {
       await fs.writeFile(this.config.tokenStorePath, JSON.stringify(this.tokens, null, 2));
+      // Restrict token file permissions to owner-only (read/write)
+      if (process.platform !== 'win32') {
+        try {
+          await fs.chmod(this.config.tokenStorePath, 0o600);
+        } catch (chmodError) {
+          // Best-effort: don't fail the save if chmod is unavailable
+          console.warn('Could not set token file permissions:', chmodError.message);
+        }
+      }
       console.log('Tokens saved successfully.');
       // return true; // No longer returning boolean, will throw on error.
     } catch (error) {

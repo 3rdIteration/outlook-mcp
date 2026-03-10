@@ -4,6 +4,7 @@
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { getFolderIdByName } = require('../email/folder-utils');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Create folder handler
@@ -69,7 +70,7 @@ async function createMailFolder(accessToken, folderName, parentFolderName) {
     if (existingFolder) {
       return {
         success: false,
-        message: `A folder named "${folderName}" already exists.`
+        message: `A folder named "${sanitizeMetadata(folderName)}" already exists.`
       };
     }
     
@@ -80,7 +81,7 @@ async function createMailFolder(accessToken, folderName, parentFolderName) {
       if (!parentId) {
         return {
           success: false,
-          message: `Parent folder "${parentFolderName}" not found. Please specify a valid parent folder or leave it blank to create at the root level.`
+          message: `Parent folder "${sanitizeMetadata(parentFolderName)}" not found. Please specify a valid parent folder or leave it blank to create at the root level.`
         };
       }
       
@@ -101,12 +102,12 @@ async function createMailFolder(accessToken, folderName, parentFolderName) {
     
     if (response && response.id) {
       const locationInfo = parentFolderName 
-        ? `inside "${parentFolderName}"` 
+        ? `inside "${sanitizeMetadata(parentFolderName)}"` 
         : "at the root level";
         
       return {
         success: true,
-        message: `Successfully created folder "${folderName}" ${locationInfo}.`,
+        message: `Successfully created folder "${sanitizeMetadata(folderName)}" ${locationInfo}.`,
         folderId: response.id
       };
     } else {

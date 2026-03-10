@@ -5,6 +5,7 @@ const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { getFolderIdByName } = require('../email/folder-utils');
 const { getInboxRules } = require('./list');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Create rule handler
@@ -230,7 +231,7 @@ async function createInboxRule(accessToken, ruleOptions) {
     if (response && response.id) {
       return {
         success: true,
-        message: `Successfully created rule "${name}" with sequence ${ruleSequence}.`,
+        message: `Successfully created rule "${sanitizeMetadata(name)}" with sequence ${ruleSequence}.`,
         ruleId: response.id
       };
     } else {

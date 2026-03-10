@@ -4,6 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Simple upload handler (for files < 4MB)
@@ -70,7 +71,7 @@ async function handleUpload(args) {
     return {
       content: [{
         type: "text",
-        text: `Successfully uploaded "${response.name}" (${formatSize(response.size)})\n\nID: ${response.id}\nWeb URL: ${response.webUrl}`
+        text: `Successfully uploaded "${sanitizeMetadata(response.name)}" (${formatSize(response.size)})\n\nID: ${response.id}\nWeb URL: ${response.webUrl}`
       }]
     };
   } catch (error) {

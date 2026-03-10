@@ -4,6 +4,7 @@
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { getFolderIdByName } = require('../email/folder-utils');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Move emails handler
@@ -92,7 +93,7 @@ async function moveEmailsToFolder(accessToken, emailIds, targetFolderName, sourc
     if (!targetFolderId) {
       return {
         success: false,
-        message: `Target folder "${targetFolderName}" not found. Please specify a valid folder name.`
+        message: `Target folder "${sanitizeMetadata(targetFolderName)}" not found. Please specify a valid folder name.`
       };
     }
     
@@ -129,7 +130,7 @@ async function moveEmailsToFolder(accessToken, emailIds, targetFolderName, sourc
     let message = '';
     
     if (results.successful.length > 0) {
-      message += `Successfully moved ${results.successful.length} email(s) to "${targetFolderName}".`;
+      message += `Successfully moved ${results.successful.length} email(s) to "${sanitizeMetadata(targetFolderName)}".`;
     }
     
     if (results.failed.length > 0) {

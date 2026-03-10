@@ -5,6 +5,7 @@ const https = require('https');
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 const CHUNK_SIZE = 320 * 1024 * 10; // 3.2MB chunks (must be multiple of 320KB)
 
@@ -104,7 +105,7 @@ async function handleUploadLarge(args) {
     return {
       content: [{
         type: "text",
-        text: `Successfully uploaded "${response.name}" (${formatSize(response.size)})\n\nID: ${response.id}\nWeb URL: ${response.webUrl}`
+        text: `Successfully uploaded "${sanitizeMetadata(response.name)}" (${formatSize(response.size)})\n\nID: ${response.id}\nWeb URL: ${response.webUrl}`
       }]
     };
   } catch (error) {
