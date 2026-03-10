@@ -331,6 +331,7 @@ async function handleDownloadAttachments(args) {
       }
 
       const results = [];
+      const errors = [];
       const savedFiles = [];
 
       for (const att of fileAttachments) {
@@ -342,14 +343,18 @@ async function handleDownloadAttachments(args) {
         if (saveToPath) {
           try {
             const resolvedDir = path.resolve(saveToPath);
-            // Sanitize filename to prevent path traversal
-            const safeName = path.basename(name);
+            // Sanitize filename: strip path components, null bytes, and control chars
+            let safeName = path.basename(name);
+            safeName = safeName.replace(/[\x00-\x1f]/g, ''); // Remove control characters including null bytes
+            if (!safeName || safeName === '.' || safeName === '..') {
+              safeName = `attachment_${att.id || Date.now()}`;
+            }
             const filePath = path.join(resolvedDir, safeName);
             const fileBuffer = Buffer.from(att.contentBytes, 'base64');
             fs.writeFileSync(filePath, fileBuffer);
             savedFiles.push({ name: safeName, path: filePath, size });
           } catch (writeError) {
-            results.push(`- ${name} (${contentType}, ${formatSize(size)}): Failed to save - ${writeError.message}`);
+            errors.push(`- ${name} (${contentType}, ${formatSize(size)}): Failed to save - ${writeError.message}`);
             continue;
           }
         }
@@ -373,10 +378,14 @@ async function handleDownloadAttachments(args) {
         ).join('\n');
       } else {
         responseText += `Downloaded ${results.length} attachment(s):\n\n`;
-        responseText += results.map((att, i) => {
-          if (typeof att === 'string') return att; // Error message
-          return `${i + 1}. ${att.name} (${att.contentType}, ${formatSize(att.size)})\n   Base64 content length: ${att.contentBytes.length} chars`;
-        }).join('\n');
+        responseText += results.map((att, i) =>
+          `${i + 1}. ${att.name} (${att.contentType}, ${formatSize(att.size)})\n   Base64 content length: ${att.contentBytes.length} chars`
+        ).join('\n');
+      }
+
+      // Report any file save errors
+      if (errors.length > 0) {
+        responseText += `\n\nFailed to save ${errors.length} attachment(s):\n${errors.join('\n')}`;
       }
 
       // Note about non-file attachments
@@ -389,7 +398,6 @@ async function handleDownloadAttachments(args) {
 
       if (!saveToPath) {
         for (const att of results) {
-          if (typeof att === 'string') continue; // Skip error messages
           content.push({
             type: "text",
             text: `\n--- Attachment: ${att.name} (${att.contentType}, ${formatSize(att.size)}) ---\n${att.contentBytes}\n--- End: ${att.name} ---`
