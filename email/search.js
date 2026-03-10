@@ -5,7 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
-const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * Search emails handler
@@ -300,7 +300,7 @@ function formatSearchResults(response) {
   return {
     content: [{ 
       type: "text", 
-      text: `Found ${response.value.length} emails matching your search criteria:${additionalInfo}\n\n${emailList}`
+      text: `Found ${response.value.length} emails matching your search criteria:${additionalInfo}\n\n${wrapWithBoundary(emailList, 'SEARCH RESULTS')}`
     }]
   };
 }

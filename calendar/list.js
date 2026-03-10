@@ -4,7 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List events handler
@@ -94,7 +94,7 @@ async function handleListEvents(args) {
     return {
       content: [{ 
         type: "text", 
-        text: `Found ${response.value.length} events:\n\n${eventList}`
+        text: `Found ${response.value.length} events:\n\n${wrapWithBoundary(eventList, 'CALENDAR EVENTS')}`
       }]
     };
   } catch (error) {

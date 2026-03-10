@@ -5,7 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
-const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List emails handler
@@ -54,7 +54,7 @@ async function handleListEmails(args) {
     return {
       content: [{ 
         type: "text", 
-        text: `Found ${response.value.length} emails in ${folder}:\n\n${emailList}`
+        text: `Found ${response.value.length} emails in ${folder}:\n\n${wrapWithBoundary(emailList, 'EMAIL LIST')}`
       }]
     };
   } catch (error) {

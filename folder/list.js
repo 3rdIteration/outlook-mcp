@@ -3,7 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List folders handler
@@ -26,7 +26,7 @@ async function handleListFolders(args) {
       return {
         content: [{ 
           type: "text", 
-          text: formatFolderHierarchy(folders, includeItemCounts)
+          text: wrapWithBoundary(formatFolderHierarchy(folders, includeItemCounts), 'FOLDER LIST')
         }]
       };
     } else {
@@ -34,7 +34,7 @@ async function handleListFolders(args) {
       return {
         content: [{ 
           type: "text", 
-          text: formatFolderList(folders, includeItemCounts)
+          text: wrapWithBoundary(formatFolderList(folders, includeItemCounts), 'FOLDER LIST')
         }]
       };
     }

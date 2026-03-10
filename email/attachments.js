@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List attachments for a specific email
@@ -59,7 +59,7 @@ async function handleListAttachments(args) {
       return {
         content: [{
           type: "text",
-          text: `Found ${attachments.length} attachment(s):\n\n${formatted}`
+          text: `Found ${attachments.length} attachment(s):\n\n${wrapWithBoundary(formatted, 'ATTACHMENTS')}`
         }]
       };
     } catch (error) {
@@ -151,7 +151,7 @@ async function handleDownloadAttachment(args) {
         return {
           content: [{
             type: "text",
-            text: `Attachment: ${name} (${contentType}, ${size})\nType: Outlook item attachment (event, message, or contact)\n\nItem attachments cannot be downloaded as files. Use the Microsoft Graph API to access the item directly.`
+            text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\nType: Outlook item attachment (event, message, or contact)\n\nItem attachments cannot be downloaded as files. Use the Microsoft Graph API to access the item directly.`, 'ATTACHMENT')
           }]
         };
       }
@@ -160,7 +160,7 @@ async function handleDownloadAttachment(args) {
         return {
           content: [{
             type: "text",
-            text: `Attachment: ${name} (${contentType}, ${size})\nType: Reference attachment (cloud file link)\n\nThis is a link to a file stored in the cloud (e.g., OneDrive or SharePoint). Use the OneDrive tools to access it.`
+            text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\nType: Reference attachment (cloud file link)\n\nThis is a link to a file stored in the cloud (e.g., OneDrive or SharePoint). Use the OneDrive tools to access it.`, 'ATTACHMENT')
           }]
         };
       }
@@ -178,7 +178,7 @@ async function handleDownloadAttachment(args) {
           return {
             content: [{
               type: "text",
-              text: `Attachment: ${name} (${contentType}, ${size})\n\n--- Content ---\n${textContent}\n--- End ---`
+              text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\n\n${textContent}`, 'ATTACHMENT CONTENT')
             }]
           };
         }
@@ -187,7 +187,7 @@ async function handleDownloadAttachment(args) {
         return {
           content: [{
             type: "text",
-            text: `Attachment: ${name} (${contentType}, ${size})\n\nBase64-encoded content (binary file):\n${attachment.contentBytes}`
+            text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\n\nBase64-encoded content (binary file):\n${attachment.contentBytes}`, 'ATTACHMENT CONTENT')
           }]
         };
       }
@@ -395,13 +395,13 @@ async function handleDownloadAttachments(args) {
       }
 
       // Build content array - include attachment data as structured text when not saving
-      const content = [{ type: "text", text: responseText }];
+      const content = [{ type: "text", text: wrapWithBoundary(responseText, 'ATTACHMENTS') }];
 
       if (!saveToPath) {
         for (const att of results) {
           content.push({
             type: "text",
-            text: `\n--- Attachment: ${att.name} (${att.contentType}, ${formatSize(att.size)}) ---\n${att.contentBytes}\n--- End: ${att.name} ---`
+            text: wrapWithBoundary(`Attachment: ${att.name} (${att.contentType}, ${formatSize(att.size)})\n${att.contentBytes}`, 'ATTACHMENT CONTENT')
           });
         }
       }

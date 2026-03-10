@@ -8,7 +8,7 @@ const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { processHtmlEmail, sanitizeHtmlToText } = require('../utils/html-sanitizer');
-const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * Read email handler
@@ -114,7 +114,7 @@ ${body}`;
         content: [
           {
             type: "text",
-            text: formattedEmail + rawHtmlSection
+            text: wrapWithBoundary(formattedEmail, 'EMAIL') + rawHtmlSection
           }
         ]
       };
