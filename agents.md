@@ -142,7 +142,7 @@ Every module that returns external data to the LLM must use the appropriate secu
 | rules/create.js | ✅ | — | — |
 | power-automate/list-flows.js | ✅ | ✅ | — |
 | power-automate/list-environments.js | ✅ | ✅ | — |
-| power-automate/list-runs.js | — | ✅ | — |
+| power-automate/list-runs.js | ✅ | ✅ | — |
 | power-automate/run-flow.js | ✅ | — | — |
 | power-automate/toggle-flow.js | ✅ | — | — |
 
