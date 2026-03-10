@@ -33,7 +33,10 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 │   ├── search.js            # Search emails
 │   ├── read.js              # Read email
 │   ├── send.js              # Send email
-│   └── mark-as-read.js      # Mark email read/unread
+│   ├── draft.js             # Create email draft
+│   ├── mark-as-read.js      # Mark email read/unread
+│   ├── attachments.js       # List/download attachments
+│   └── folder-utils.js      # Folder lookup utilities
 ├── folder/                  # Folder functionality
 │   ├── index.js             # Folder exports
 │   ├── list.js              # List folders
@@ -63,13 +66,15 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 └── utils/                   # Utility functions
     ├── graph-api.js         # Microsoft Graph API helper
     ├── odata-helpers.js     # OData query building
+    ├── html-sanitizer.js    # HTML email sanitization
+    ├── metadata-sanitizer.js # Metadata sanitization
     └── mock-data.js         # Test mode data
 ```
 
 ## Features
 
 - **Authentication**: OAuth 2.0 authentication with Microsoft Graph API (+ Flow API for Power Automate)
-- **Email Management**: List, search, read, send, and organize emails
+- **Email Management**: List, search, read, send, draft, and organize emails with attachment support
 - **Calendar Management**: List, create, accept, decline, and delete calendar events
 - **OneDrive Integration**: List, search, upload, download, and share files
 - **Power Automate**: List environments/flows, trigger flows, view run history
@@ -85,7 +90,11 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 | `search-emails` | Search emails with filters |
 | `read-email` | Read email content |
 | `send-email` | Send a new email |
+| `draft-email` | Create and save an email draft |
 | `mark-as-read` | Mark email as read/unread |
+| `list-email-attachments` | List all attachments for a specific email |
+| `download-email-attachment` | Download a specific attachment from an email |
+| `download-email-attachments` | Download all attachments from an email (optionally save to disk) |
 | `list-events` | List calendar events |
 | `create-event` | Create calendar event |
 | `accept-event` | Accept event invitation |
