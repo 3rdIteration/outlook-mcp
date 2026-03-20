@@ -231,7 +231,7 @@ node /path/to/outlook-mcp/index.js
 
 #### Claude Desktop
 
-Add to your Claude Desktop config (`claude_desktop_config.json`):
+Add to your Claude Desktop config (`claude_desktop_config.json`). A ready-to-edit sample is provided in [`claude-config-sample.json`](claude-config-sample.json).
 
 ```json
 {
@@ -251,7 +251,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
 
 #### VS Code (GitHub Copilot)
 
-Add to `.vscode/mcp.json` in your workspace, or open the user-level config via the Command Palette → `MCP: Open User Configuration`:
+Add to `.vscode/mcp.json` in your workspace, or open the user-level config via the Command Palette → `MCP: Open User Configuration`. A ready-to-edit sample is provided in [`vscode-config-sample.json`](vscode-config-sample.json).
 
 ```json
 {
@@ -272,7 +272,7 @@ Add to `.vscode/mcp.json` in your workspace, or open the user-level config via t
 
 #### Cursor
 
-Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-level), or go to **Settings → Tools & MCP → Add Custom MCP**:
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-level), or go to **Settings → Tools & MCP → Add Custom MCP**. A ready-to-edit sample is provided in [`cursor-config-sample.json`](cursor-config-sample.json).
 
 ```json
 {
@@ -292,7 +292,7 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-level), or g
 
 #### Windsurf
 
-Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade → MCP Servers → Add custom server**:
+Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade → MCP Servers → Add custom server**. A ready-to-edit sample is provided in [`windsurf-config-sample.json`](windsurf-config-sample.json).
 
 ```json
 {
