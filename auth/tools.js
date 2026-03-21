@@ -80,7 +80,7 @@ async function handleCheckAuthStatus() {
 const authTools = [
   {
     name: "about",
-    description: "Returns information about this M365 Assistant server",
+    description: "Server info and capabilities",
     inputSchema: {
       type: "object",
       properties: {},
@@ -90,13 +90,13 @@ const authTools = [
   },
   {
     name: "authenticate",
-    description: "Authenticate with Microsoft Graph API to access Outlook data",
+    description: "Authenticate with Microsoft Graph API",
     inputSchema: {
       type: "object",
       properties: {
         force: {
           type: "boolean",
-          description: "Force re-authentication even if already authenticated"
+          description: "Force re-authentication"
         }
       },
       required: []
@@ -105,7 +105,7 @@ const authTools = [
   },
   {
     name: "check-auth-status",
-    description: "Check the current authentication status with Microsoft Graph API",
+    description: "Check authentication status",
     inputSchema: {
       type: "object",
       properties: {},

@@ -11,13 +11,13 @@ const handleDeleteEvent = require('./delete');
 const calendarTools = [
   {
     name: "list-events",
-    description: "Lists upcoming events from your calendar",
+    description: "List upcoming calendar events",
     inputSchema: {
       type: "object",
       properties: {
         count: {
           type: "number",
-          description: "Number of events to retrieve (default: 10, max: 50)"
+          description: "Number of events (default: 10, max: 50)"
         }
       },
       required: []
@@ -26,17 +26,17 @@ const calendarTools = [
   },
   {
     name: "decline-event",
-    description: "Declines a calendar event",
+    description: "Decline a calendar event",
     inputSchema: {
       type: "object",
       properties: {
         eventId: {
           type: "string",
-          description: "The ID of the event to decline"
+          description: "Event ID"
         },
         comment: {
           type: "string",
-          description: "Optional comment for declining the event"
+          description: "Optional decline comment"
         }
       },
       required: ["eventId"]
@@ -45,32 +45,32 @@ const calendarTools = [
   },
   {
     name: "create-event",
-    description: "Creates a new calendar event",
+    description: "Create a calendar event",
     inputSchema: {
       type: "object",
       properties: {
         subject: {
           type: "string",
-          description: "The subject of the event"
+          description: "Event subject"
         },
         start: {
           type: "string",
-          description: "The start time of the event in ISO 8601 format"
+          description: "Start time (ISO 8601)"
         },
         end: {
           type: "string",
-          description: "The end time of the event in ISO 8601 format"
+          description: "End time (ISO 8601)"
         },
         attendees: {
           type: "array",
           items: {
             type: "string"
           },
-          description: "List of attendee email addresses"
+          description: "Attendee email addresses"
         },
         body: {
           type: "string",
-          description: "Optional body content for the event"
+          description: "Event body content"
         }
       },
       required: ["subject", "start", "end"]
@@ -79,17 +79,17 @@ const calendarTools = [
   },
   {
     name: "cancel-event",
-    description: "Cancels a calendar event",
+    description: "Cancel a calendar event",
     inputSchema: {
       type: "object",
       properties: {
         eventId: {
           type: "string",
-          description: "The ID of the event to cancel"
+          description: "Event ID"
         },
         comment: {
           type: "string",
-          description: "Optional comment for cancelling the event"
+          description: "Optional cancel comment"
         }
       },
       required: ["eventId"]
@@ -98,13 +98,13 @@ const calendarTools = [
   },
   {
     name: "delete-event",
-    description: "Deletes a calendar event",
+    description: "Delete a calendar event",
     inputSchema: {
       type: "object",
       properties: {
         eventId: {
           type: "string",
-          description: "The ID of the event to delete"
+          description: "Event ID"
         }
       },
       required: ["eventId"]

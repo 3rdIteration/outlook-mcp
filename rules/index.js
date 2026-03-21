@@ -90,13 +90,13 @@ async function handleEditRuleSequence(args) {
 const rulesTools = [
   {
     name: "list-rules",
-    description: "Lists inbox rules in your Outlook account",
+    description: "List inbox rules",
     inputSchema: {
       type: "object",
       properties: {
         includeDetails: {
           type: "boolean",
-          description: "Include detailed rule conditions and actions"
+          description: "Include rule conditions and actions"
         }
       },
       required: []
@@ -105,41 +105,41 @@ const rulesTools = [
   },
   {
     name: "create-rule",
-    description: "Creates a new inbox rule",
+    description: "Create an inbox rule",
     inputSchema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "Name of the rule to create"
+          description: "Rule name"
         },
         fromAddresses: {
           type: "string",
-          description: "Comma-separated list of sender email addresses for the rule"
+          description: "Sender addresses, comma-separated"
         },
         containsSubject: {
           type: "string",
-          description: "Subject text the email must contain"
+          description: "Subject contains text"
         },
         hasAttachments: {
           type: "boolean",
-          description: "Whether the rule applies to emails with attachments"
+          description: "Match emails with attachments"
         },
         moveToFolder: {
           type: "string",
-          description: "Name of the folder to move matching emails to"
+          description: "Target folder name"
         },
         markAsRead: {
           type: "boolean", 
-          description: "Whether to mark matching emails as read"
+          description: "Mark as read"
         },
         isEnabled: {
           type: "boolean",
-          description: "Whether the rule should be enabled after creation (default: true)"
+          description: "Enable rule (default: true)"
         },
         sequence: {
           type: "number",
-          description: "Order in which the rule is executed (lower numbers run first, default: 100)"
+          description: "Execution order (default: 100)"
         }
       },
       required: ["name"]
@@ -148,17 +148,17 @@ const rulesTools = [
   },
   {
     name: "edit-rule-sequence",
-    description: "Changes the execution order of an existing inbox rule",
+    description: "Change rule execution order",
     inputSchema: {
       type: "object",
       properties: {
         ruleName: {
           type: "string",
-          description: "Name of the rule to modify"
+          description: "Rule name"
         },
         sequence: {
           type: "number",
-          description: "New sequence value for the rule (lower numbers run first)"
+          description: "New sequence number"
         }
       },
       required: ["ruleName", "sequence"]

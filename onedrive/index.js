@@ -13,17 +13,17 @@ const { handleCreateFolder, handleDeleteItem } = require('./folder');
 const onedriveTools = [
   {
     name: "onedrive-list",
-    description: "List files and folders in OneDrive at a specific path",
+    description: "List OneDrive files and folders",
     inputSchema: {
       type: "object",
       properties: {
         path: {
           type: "string",
-          description: "Path to list (e.g., '/Documents', '/Photos'). Defaults to root."
+          description: "Path (default: root)"
         },
         count: {
           type: "number",
-          description: "Number of items to retrieve (default: 25, max: 50)"
+          description: "Max items (default: 25, max: 50)"
         }
       },
       required: []
@@ -32,17 +32,17 @@ const onedriveTools = [
   },
   {
     name: "onedrive-search",
-    description: "Search for files in OneDrive by name or content",
+    description: "Search OneDrive files",
     inputSchema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Search query to find files"
+          description: "Search query"
         },
         count: {
           type: "number",
-          description: "Number of results to return (default: 25, max: 50)"
+          description: "Max results (default: 25, max: 50)"
         }
       },
       required: ["query"]
@@ -51,17 +51,17 @@ const onedriveTools = [
   },
   {
     name: "onedrive-download",
-    description: "Get a download URL for a file in OneDrive. Either 'itemId' or 'path' must be provided.",
+    description: "Get file download URL (provide itemId or path)",
     inputSchema: {
       type: "object",
       properties: {
         itemId: {
           type: "string",
-          description: "ID of the item to download"
+          description: "Item ID"
         },
         path: {
           type: "string",
-          description: "Path to the file (alternative to itemId)"
+          description: "File path (alternative to itemId)"
         }
       },
       required: []
@@ -70,21 +70,21 @@ const onedriveTools = [
   },
   {
     name: "onedrive-upload",
-    description: "Upload a small file (< 4MB) to OneDrive",
+    description: "Upload file to OneDrive (< 4MB)",
     inputSchema: {
       type: "object",
       properties: {
         path: {
           type: "string",
-          description: "Destination path including filename (e.g., '/Documents/myfile.txt')"
+          description: "Destination path with filename"
         },
         content: {
           type: "string",
-          description: "File content to upload"
+          description: "File content"
         },
         conflictBehavior: {
           type: "string",
-          description: "Behavior when file exists: 'rename' (default), 'replace', or 'fail'",
+          description: "If exists: rename, replace, or fail",
           enum: ["rename", "replace", "fail"]
         }
       },
@@ -94,21 +94,21 @@ const onedriveTools = [
   },
   {
     name: "onedrive-upload-large",
-    description: "Upload a large file (> 4MB) to OneDrive using chunked upload",
+    description: "Upload large file to OneDrive (> 4MB, chunked)",
     inputSchema: {
       type: "object",
       properties: {
         path: {
           type: "string",
-          description: "Destination path including filename (e.g., '/Documents/largefile.zip')"
+          description: "Destination path with filename"
         },
         content: {
           type: "string",
-          description: "File content to upload"
+          description: "File content"
         },
         conflictBehavior: {
           type: "string",
-          description: "Behavior when file exists: 'rename' (default), 'replace', or 'fail'",
+          description: "If exists: rename, replace, or fail",
           enum: ["rename", "replace", "fail"]
         }
       },
@@ -118,26 +118,26 @@ const onedriveTools = [
   },
   {
     name: "onedrive-share",
-    description: "Create a sharing link for a file or folder in OneDrive",
+    description: "Create a sharing link for OneDrive item",
     inputSchema: {
       type: "object",
       properties: {
         itemId: {
           type: "string",
-          description: "ID of the item to share"
+          description: "Item ID"
         },
         path: {
           type: "string",
-          description: "Path to the item (alternative to itemId)"
+          description: "Item path (alternative to itemId)"
         },
         type: {
           type: "string",
-          description: "Link type: 'view' (default), 'edit', or 'embed'",
+          description: "Link type",
           enum: ["view", "edit", "embed"]
         },
         scope: {
           type: "string",
-          description: "Link scope: 'anonymous' (default) or 'organization'",
+          description: "Link scope",
           enum: ["anonymous", "organization"]
         }
       },
@@ -147,17 +147,17 @@ const onedriveTools = [
   },
   {
     name: "onedrive-create-folder",
-    description: "Create a new folder in OneDrive",
+    description: "Create a OneDrive folder",
     inputSchema: {
       type: "object",
       properties: {
         path: {
           type: "string",
-          description: "Parent folder path (e.g., '/Documents'). Defaults to root."
+          description: "Parent path (default: root)"
         },
         name: {
           type: "string",
-          description: "Name of the new folder"
+          description: "Folder name"
         }
       },
       required: ["name"]
@@ -166,17 +166,17 @@ const onedriveTools = [
   },
   {
     name: "onedrive-delete",
-    description: "Delete a file or folder from OneDrive",
+    description: "Delete a OneDrive item",
     inputSchema: {
       type: "object",
       properties: {
         itemId: {
           type: "string",
-          description: "ID of the item to delete"
+          description: "Item ID"
         },
         path: {
           type: "string",
-          description: "Path to the item (alternative to itemId)"
+          description: "Item path (alternative to itemId)"
         }
       },
       required: []

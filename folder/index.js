@@ -9,17 +9,17 @@ const handleMoveEmails = require('./move');
 const folderTools = [
   {
     name: "list-folders",
-    description: "Lists mail folders in your Outlook account",
+    description: "List mail folders",
     inputSchema: {
       type: "object",
       properties: {
         includeItemCounts: {
           type: "boolean",
-          description: "Include counts of total and unread items"
+          description: "Include total and unread counts"
         },
         includeChildren: {
           type: "boolean",
-          description: "Include child folders in hierarchy"
+          description: "Include child folders"
         }
       },
       required: []
@@ -28,17 +28,17 @@ const folderTools = [
   },
   {
     name: "create-folder",
-    description: "Creates a new mail folder",
+    description: "Create a mail folder",
     inputSchema: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "Name of the folder to create"
+          description: "Folder name"
         },
         parentFolder: {
           type: "string",
-          description: "Optional parent folder name (default is root)"
+          description: "Parent folder (default: root)"
         }
       },
       required: ["name"]
@@ -47,21 +47,21 @@ const folderTools = [
   },
   {
     name: "move-emails",
-    description: "Moves emails from one folder to another",
+    description: "Move emails between folders",
     inputSchema: {
       type: "object",
       properties: {
         emailIds: {
           type: "string",
-          description: "Comma-separated list of email IDs to move"
+          description: "Comma-separated email IDs"
         },
         targetFolder: {
           type: "string",
-          description: "Name of the folder to move emails to"
+          description: "Target folder name"
         },
         sourceFolder: {
           type: "string",
-          description: "Optional name of the source folder (default is inbox)"
+          description: "Source folder (default: inbox)"
         }
       },
       required: ["emailIds", "targetFolder"]

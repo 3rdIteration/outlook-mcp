@@ -349,6 +349,13 @@ npm run auth-server
 **"Authentication required"**
 - Delete `~/.outlook-mcp-tokens.json` and re-authenticate
 
+**Agent only sees some tools / missing email or calendar tools**
+- This server exposes 36 tools. Clients with very small context windows (e.g., 4096 tokens) may not be able to load all tool definitions at once, causing some tools to be invisible to the agent.
+- **Minimum recommended context window: 8,192 tokens** (works well for all 36 tools)
+- **Minimum functional context window: 4,096 tokens** (tools load but very little room for conversation)
+- The server supports cursor-based pagination for `tools/list` (page size: 10) so clients that support MCP pagination will fetch tools incrementally.
+- If your agent is missing tools, increase the model's context window or max tool tokens setting in your client configuration.
+
 ## Testing
 
 ```bash

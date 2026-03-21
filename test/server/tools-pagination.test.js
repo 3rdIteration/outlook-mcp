@@ -143,4 +143,14 @@ describe('tools/list pagination', () => {
       cursor = result.nextCursor;
     }
   });
+
+  test('total tool definitions fit within small context window budget', () => {
+    // Tool definitions should stay under ~12KB / ~3000 tokens to remain
+    // functional on clients with 4096-token context windows.
+    // At ~4 chars/token, 12000 bytes ≈ 3000 tokens.
+    const fullResponse = JSON.stringify({
+      tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }))
+    });
+    expect(fullResponse.length).toBeLessThan(12000);
+  });
 });

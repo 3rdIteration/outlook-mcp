@@ -11,7 +11,7 @@ const handleToggleFlow = require('./toggle-flow');
 const powerAutomateTools = [
   {
     name: "flow-list-environments",
-    description: "List available Power Platform environments",
+    description: "List Power Platform environments",
     inputSchema: {
       type: "object",
       properties: {},
@@ -21,13 +21,13 @@ const powerAutomateTools = [
   },
   {
     name: "flow-list",
-    description: "List flows in a Power Platform environment",
+    description: "List flows in an environment",
     inputSchema: {
       type: "object",
       properties: {
         environmentId: {
           type: "string",
-          description: "The environment ID (e.g., 'Default-12345'). Use 'flow-list-environments' to find available environments."
+          description: "Environment ID"
         }
       },
       required: ["environmentId"]
@@ -36,21 +36,21 @@ const powerAutomateTools = [
   },
   {
     name: "flow-run",
-    description: "Trigger a manual flow run",
+    description: "Trigger a manual flow",
     inputSchema: {
       type: "object",
       properties: {
         environmentId: {
           type: "string",
-          description: "The environment ID"
+          description: "Environment ID"
         },
         flowId: {
           type: "string",
-          description: "The flow ID to trigger"
+          description: "Flow ID"
         },
         inputs: {
           type: "string",
-          description: "Optional JSON string of input parameters for the flow"
+          description: "JSON input parameters (optional)"
         }
       },
       required: ["environmentId", "flowId"]
@@ -59,21 +59,21 @@ const powerAutomateTools = [
   },
   {
     name: "flow-list-runs",
-    description: "Get run history for a flow",
+    description: "Get flow run history",
     inputSchema: {
       type: "object",
       properties: {
         environmentId: {
           type: "string",
-          description: "The environment ID"
+          description: "Environment ID"
         },
         flowId: {
           type: "string",
-          description: "The flow ID to get runs for"
+          description: "Flow ID"
         },
         count: {
           type: "number",
-          description: "Number of runs to retrieve (default: 10)"
+          description: "Max runs (default: 10)"
         }
       },
       required: ["environmentId", "flowId"]
@@ -88,15 +88,15 @@ const powerAutomateTools = [
       properties: {
         environmentId: {
           type: "string",
-          description: "The environment ID"
+          description: "Environment ID"
         },
         flowId: {
           type: "string",
-          description: "The flow ID to toggle"
+          description: "Flow ID"
         },
         enable: {
           type: "boolean",
-          description: "Set to true to enable, false to disable (default: true)"
+          description: "Enable (true) or disable (false)"
         }
       },
       required: ["environmentId", "flowId"]
