@@ -57,4 +57,10 @@ module.exports = {
   // Power Automate / Flow constants
   FLOW_API_ENDPOINT: 'https://api.flow.microsoft.com',
   FLOW_SCOPE: 'https://service.flow.microsoft.com/.default',
+
+  // HTTP/SSE server (for OpenWebUI and other HTTP-based MCP clients)
+  // Set MCP_HTTP_PORT env var to change port (default: 3001).
+  // Set MCP_HTTP_HOST env var to change bind address (default: 0.0.0.0).
+  HTTP_PORT: parseInt(process.env.MCP_HTTP_PORT, 10) || 3001,
+  HTTP_HOST: process.env.MCP_HTTP_HOST || '0.0.0.0',
 };

@@ -4,22 +4,25 @@
  * Creates and starts an MCP server with the given tools.
  * Used by the combined index.js and by the per-service entry points
  * (server-email.js, server-calendar.js, server-onedrive.js, server-power-automate.js).
+ * Also used by sse-server.js for HTTP/SSE transport.
  */
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const config = require('./config');
 
+// Register SIGTERM handler once at the module level
+process.on('SIGTERM', () => {
+  console.error('SIGTERM received but staying alive');
+});
+
 /**
- * Create and start an MCP server.
+ * Create an MCP server instance with the given tools, without binding any transport.
+ * Suitable for use with any transport (stdio, HTTP, SSE).
  * @param {string} serverName - Display name for this server instance
  * @param {Array} tools - Array of tool definitions (name, description, inputSchema, handler)
- * @returns {Server} The MCP server instance
+ * @returns {Server} The MCP server instance (not yet connected to a transport)
  */
-function createServer(serverName, tools) {
-  // Log startup information
-  console.error(`STARTING ${serverName.toUpperCase()} MCP SERVER`);
-  console.error(`Test mode is ${config.USE_TEST_MODE ? 'enabled' : 'disabled'}`);
-
+function createMcpServer(serverName, tools) {
   const TOOLS = tools;
 
   // Create server with tools capabilities
@@ -158,12 +161,23 @@ function createServer(serverName, tools) {
     }
   };
 
-  // Make the script executable
-  process.on('SIGTERM', () => {
-    console.error('SIGTERM received but staying alive');
-  });
+  return server;
+}
 
-  // Start the server
+/**
+ * Create and start an MCP server using stdio transport.
+ * @param {string} serverName - Display name for this server instance
+ * @param {Array} tools - Array of tool definitions (name, description, inputSchema, handler)
+ * @returns {Server} The MCP server instance
+ */
+function createServer(serverName, tools) {
+  // Log startup information
+  console.error(`STARTING ${serverName.toUpperCase()} MCP SERVER`);
+  console.error(`Test mode is ${config.USE_TEST_MODE ? 'enabled' : 'disabled'}`);
+
+  const server = createMcpServer(serverName, tools);
+
+  // Start the server with stdio transport
   const transport = new StdioServerTransport();
   server.connect(transport)
     .then(() => console.error(`${serverName} connected and listening`))
@@ -175,4 +189,4 @@ function createServer(serverName, tools) {
   return server;
 }
 
-module.exports = { createServer };
+module.exports = { createServer, createMcpServer };

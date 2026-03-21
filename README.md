@@ -2,7 +2,7 @@
 
 # M365 Assistant MCP Server
 
-A comprehensive MCP (Model Context Protocol) server that connects AI assistants with Microsoft 365 services through the Microsoft Graph API and Power Automate API. Works with any MCP-compatible client including Claude Desktop, VS Code (GitHub Copilot), Cursor, and Windsurf.
+A comprehensive MCP (Model Context Protocol) server that connects AI assistants with Microsoft 365 services through the Microsoft Graph API and Power Automate API. Works with any MCP-compatible client including Claude Desktop, VS Code (GitHub Copilot), Cursor, Windsurf, and **OpenWebUI**.
 
 ## Supported Services
 
@@ -233,6 +233,8 @@ USE_TEST_MODE=false
 
 This server works with any MCP-compatible client. Below are setup instructions for popular platforms.
 
+> **Stdio vs HTTP transports**: The default entry point (`index.js`) uses **stdio** transport — each AI client manages the process directly. For **OpenWebUI** (and any browser-based or remote client), use the HTTP server (`sse-server.js` / `npm run start:http`) which exposes a Streamable HTTP endpoint at `/mcp`. See the [OpenWebUI section](#openwebui) below for full setup instructions.
+
 #### Generic MCP Client (Command + ENV UI)
 
 Many MCP clients provide a simple form with a **Command** field and **ENV** key/value pairs. Use the following values:
@@ -309,6 +311,43 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-level), or g
   }
 }
 ```
+
+#### OpenWebUI
+
+OpenWebUI (≥ 0.6.6) supports MCP natively over **Streamable HTTP**. Instead of the stdio-based `index.js`, run the dedicated HTTP server (`sse-server.js`) which serves all tools over HTTP on port 3001 (configurable).
+
+**Step 1 — Start the HTTP server**
+
+```bash
+# Copy and edit the .env file with your Microsoft credentials
+cp .env.example .env   # or create one manually
+
+MS_CLIENT_ID=your-client-id
+MS_CLIENT_SECRET=your-client-secret
+MS_TENANT_ID=common       # or your specific tenant ID
+
+# Start the server (default: http://0.0.0.0:3001)
+npm run start:http
+```
+
+> To change the port: `MCP_HTTP_PORT=8080 npm run start:http`
+
+**Step 2 — Authenticate with Microsoft**
+
+Open `http://localhost:3001/auth` in your browser to complete the OAuth flow. Once authenticated, the token is stored and all MCP requests will be automatically authorized.
+
+**Step 3 — Add the server to OpenWebUI**
+
+1. Go to **Admin Panel → Settings → Tools → Add MCP Server**
+2. Fill in the form:
+   - **Name**: `M365 Assistant`
+   - **URL**: `http://your-server-address:3001/mcp`
+   - **Type**: `MCP (Streamable HTTP)`
+3. Click **Save**.
+
+The M365 tools will now appear in OpenWebUI's tool list and can be used in chat sessions.
+
+> **Note on origins**: By default the server allows requests from any origin. In a production deployment, set `MCP_ALLOWED_ORIGIN=https://your-openwebui-host` to restrict cross-origin access.
 
 #### Windsurf
 

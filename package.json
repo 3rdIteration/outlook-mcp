@@ -9,6 +9,7 @@
     "start:calendar": "node server-calendar.js",
     "start:onedrive": "node server-onedrive.js",
     "start:power-automate": "node server-power-automate.js",
+    "start:http": "node sse-server.js",
     "auth-server": "node outlook-auth-server.js",
     "test-mode": "USE_TEST_MODE=true node index.js",
     "inspect": "npx @modelcontextprotocol/inspector node index.js",
@@ -28,7 +29,8 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@modelcontextprotocol/inspector": "^0.10.2",
