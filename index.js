@@ -62,13 +62,26 @@ server.fallbackRequestHandler = async (request) => {
       };
     }
     
-    // Tools list handler with cursor-based pagination
+    // Tools list handler with optional cursor-based pagination
     if (method === "tools/list") {
       console.error(`TOOLS LIST REQUEST: ID [${id}]`);
       console.error(`TOOLS COUNT: ${TOOLS.length}`);
       console.error(`TOOLS NAMES: ${TOOLS.map(t => t.name).join(', ')}`);
       
       const pageSize = config.TOOLS_PAGE_SIZE;
+
+      // When pageSize is 0 or negative, return all tools without pagination
+      if (pageSize <= 0) {
+        console.error(`TOOLS PAGE: 0-${TOOLS.length - 1} of ${TOOLS.length} (no pagination)`);
+        return {
+          tools: TOOLS.map(tool => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema
+          }))
+        };
+      }
+
       const cursor = params?.cursor;
       let startIndex = 0;
 

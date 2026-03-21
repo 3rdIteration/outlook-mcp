@@ -42,8 +42,10 @@ module.exports = {
   DEFAULT_PAGE_SIZE: 25,
   MAX_RESULT_COUNT: 50,
 
-  // Tools listing pagination - number of tools per page for tools/list
-  TOOLS_PAGE_SIZE: 10,
+  // Tools listing pagination - number of tools per page for tools/list.
+  // Set MCP_TOOLS_PAGE_SIZE env var to control page size.
+  // 0 (default) = return all tools in one response (no pagination).
+  TOOLS_PAGE_SIZE: parseInt(process.env.MCP_TOOLS_PAGE_SIZE, 10) || 0,
 
   // Timezone
   DEFAULT_TIMEZONE: "Central European Standard Time",

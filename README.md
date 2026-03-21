@@ -350,10 +350,15 @@ npm run auth-server
 - Delete `~/.outlook-mcp-tokens.json` and re-authenticate
 
 **Agent only sees some tools / missing email or calendar tools**
-- This server exposes 36 tools. Clients with very small context windows (e.g., 4096 tokens) may not be able to load all tool definitions at once, causing some tools to be invisible to the agent.
+- This server exposes 36 tools. By default, all tools are returned in a single `tools/list` response (no pagination).
+- Some MCP clients (e.g., Claude.ai) do not follow `nextCursor` pagination, so the default is to return everything at once.
+- If you previously set `MCP_TOOLS_PAGE_SIZE` to a small number (e.g., 10), the client may only see the first page of tools. Remove the variable or set it to `0` to disable pagination:
+  ```bash
+  # In your .env file or environment:
+  MCP_TOOLS_PAGE_SIZE=0
+  ```
 - **Minimum recommended context window: 8,192 tokens** (works well for all 36 tools)
 - **Minimum functional context window: 4,096 tokens** (tools load but very little room for conversation)
-- The server supports cursor-based pagination for `tools/list` (page size: 10) so clients that support MCP pagination will fetch tools incrementally.
 - If your agent is missing tools, increase the model's context window or max tool tokens setting in your client configuration.
 
 ## Testing
