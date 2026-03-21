@@ -88,7 +88,16 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 
 ## Available Tools
 
-### Outlook (Email & Calendar)
+Each tool category below corresponds to a **split server entry point** that can be enabled independently. See [Selective Service Configuration](#selective-service-configuration-split-servers) for details.
+
+### Authentication (included in all servers)
+| Tool | Description |
+|------|-------------|
+| `about` | Server info and capabilities |
+| `authenticate` | Authenticate with Microsoft Graph API |
+| `check-auth-status` | Check authentication status |
+
+### Email (`server-email.js`)
 | Tool | Description |
 |------|-------------|
 | `list-emails` | List recent emails from inbox |
@@ -100,18 +109,24 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 | `list-email-attachments` | List all attachments for a specific email |
 | `download-email-attachment` | Download a specific attachment from an email |
 | `download-email-attachments` | Download all attachments from an email (optionally save to disk) |
-| `list-events` | List calendar events |
-| `create-event` | Create calendar event |
-| `accept-event` | Accept event invitation |
-| `decline-event` | Decline event invitation |
-| `delete-event` | Delete calendar event |
 | `list-folders` | List mail folders |
 | `create-folder` | Create mail folder |
 | `move-emails` | Move emails between folders |
 | `list-rules` | List inbox rules |
 | `create-rule` | Create inbox rule |
+| `edit-rule-sequence` | Change rule execution order |
 
-### OneDrive
+### Calendar (`server-calendar.js`)
+| Tool | Description |
+|------|-------------|
+| `list-events` | List calendar events |
+| `create-event` | Create calendar event |
+| `accept-event` | Accept event invitation |
+| `decline-event` | Decline event invitation |
+| `cancel-event` | Cancel a calendar event |
+| `delete-event` | Delete calendar event |
+
+### OneDrive (`server-onedrive.js`)
 | Tool | Description |
 |------|-------------|
 | `onedrive-list` | List files in a path |
@@ -123,7 +138,7 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 | `onedrive-create-folder` | Create folder |
 | `onedrive-delete` | Delete file or folder |
 
-### Power Automate
+### Power Automate (`server-power-automate.js`)
 | Tool | Description |
 |------|-------------|
 | `flow-list-environments` | List Power Platform environments |
@@ -322,10 +337,10 @@ By default, `index.js` loads all 36 tools. If you only need a subset of Microsof
 | Entry Point | Server Name | Included Tools |
 |-------------|-------------|---------------|
 | `index.js` | m365-assistant | All tools (email, calendar, OneDrive, Power Automate) |
-| `server-email.js` | m365-email | Email, folders, rules + auth |
-| `server-calendar.js` | m365-calendar | Calendar + auth |
-| `server-onedrive.js` | m365-onedrive | OneDrive + auth |
-| `server-power-automate.js` | m365-power-automate | Power Automate + auth |
+| `server-email.js` | m365-email | `list-emails`, `search-emails`, `read-email`, `send-email`, `draft-email`, `mark-as-read`, `list-email-attachments`, `download-email-attachment`, `download-email-attachments`, `list-folders`, `create-folder`, `move-emails`, `list-rules`, `create-rule`, `edit-rule-sequence` + auth |
+| `server-calendar.js` | m365-calendar | `list-events`, `create-event`, `accept-event`, `decline-event`, `cancel-event`, `delete-event` + auth |
+| `server-onedrive.js` | m365-onedrive | `onedrive-list`, `onedrive-search`, `onedrive-download`, `onedrive-upload`, `onedrive-upload-large`, `onedrive-share`, `onedrive-create-folder`, `onedrive-delete` + auth |
+| `server-power-automate.js` | m365-power-automate | `flow-list-environments`, `flow-list`, `flow-run`, `flow-list-runs`, `flow-toggle` + auth |
 
 **To enable only the services you need**, add separate MCP server entries to your client config — one for each service. Simply omit any services you don't want. For example, to enable only Email and Calendar in Claude Desktop:
 
