@@ -1,11 +1,11 @@
 /**
  * Email rules management module for Outlook MCP server
  */
-const handleListRules = require('./list');
+const { handleListRules, getInboxRules } = require('./list');
 const handleCreateRule = require('./create');
-
-// Import getInboxRules for the edit sequence tool
-const { getInboxRules } = require('./list');
+const { callGraphAPI } = require('../utils/graph-api');
+const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Edit rule sequence handler
@@ -46,7 +46,7 @@ async function handleEditRuleSequence(args) {
       return {
         content: [{ 
           type: "text", 
-          text: `Rule with name "${ruleName}" not found.`
+          text: `Rule with name "${sanitizeMetadata(ruleName)}" not found.`
         }]
       };
     }
@@ -64,7 +64,7 @@ async function handleEditRuleSequence(args) {
     return {
       content: [{ 
         type: "text", 
-        text: `Successfully updated the sequence of rule "${ruleName}" to ${sequence}.`
+        text: `Successfully updated the sequence of rule "${sanitizeMetadata(ruleName)}" to ${sequence}.`
       }]
     };
   } catch (error) {

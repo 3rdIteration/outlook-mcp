@@ -13,7 +13,12 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 ## Directory Structure
 
 ```
-├── index.js                 # Main entry point
+├── index.js                 # Main entry point (all tools)
+├── server.js                # Shared MCP server factory
+├── server-email.js          # Email-only server entry point
+├── server-calendar.js       # Calendar-only server entry point
+├── server-onedrive.js       # OneDrive-only server entry point
+├── server-power-automate.js # Power Automate-only server entry point
 ├── config.js                # Configuration settings
 ├── auth/                    # Authentication modules
 │   ├── index.js             # Authentication exports
@@ -83,7 +88,16 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 
 ## Available Tools
 
-### Outlook (Email & Calendar)
+Each tool category below corresponds to a **split server entry point** that can be enabled independently. See [Selective Service Configuration](#selective-service-configuration-split-servers) for details.
+
+### Authentication (included in all servers)
+| Tool | Description |
+|------|-------------|
+| `about` | Server info and capabilities |
+| `authenticate` | Authenticate with Microsoft Graph API |
+| `check-auth-status` | Check authentication status |
+
+### Email (`server-email.js`)
 | Tool | Description |
 |------|-------------|
 | `list-emails` | List recent emails from inbox |
@@ -95,18 +109,24 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 | `list-email-attachments` | List all attachments for a specific email |
 | `download-email-attachment` | Download a specific attachment from an email |
 | `download-email-attachments` | Download all attachments from an email (optionally save to disk) |
-| `list-events` | List calendar events |
-| `create-event` | Create calendar event |
-| `accept-event` | Accept event invitation |
-| `decline-event` | Decline event invitation |
-| `delete-event` | Delete calendar event |
 | `list-folders` | List mail folders |
 | `create-folder` | Create mail folder |
 | `move-emails` | Move emails between folders |
 | `list-rules` | List inbox rules |
 | `create-rule` | Create inbox rule |
+| `edit-rule-sequence` | Change rule execution order |
 
-### OneDrive
+### Calendar (`server-calendar.js`)
+| Tool | Description |
+|------|-------------|
+| `list-events` | List calendar events |
+| `create-event` | Create calendar event |
+| `accept-event` | Accept event invitation |
+| `decline-event` | Decline event invitation |
+| `cancel-event` | Cancel a calendar event |
+| `delete-event` | Delete calendar event |
+
+### OneDrive (`server-onedrive.js`)
 | Tool | Description |
 |------|-------------|
 | `onedrive-list` | List files in a path |
@@ -118,7 +138,7 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 | `onedrive-create-folder` | Create folder |
 | `onedrive-delete` | Delete file or folder |
 
-### Power Automate
+### Power Automate (`server-power-automate.js`)
 | Tool | Description |
 |------|-------------|
 | `flow-list-environments` | List Power Platform environments |
@@ -310,6 +330,55 @@ Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade �
 }
 ```
 
+### Selective Service Configuration (Split Servers)
+
+By default, `index.js` loads all 37 tools. If you only need a subset of Microsoft 365 services, you can use the **focused server entry points** instead. This reduces context window usage and avoids exposing unnecessary tools to the AI assistant.
+
+| Entry Point | Server Name | Tools | Definition Size | ~Tokens |
+|-------------|-------------|:-----:|:---------:|:-------:|
+| `index.js` | m365-assistant | 37 | 11.7 KB | ~2,934 |
+| `server-email.js` | m365-email | 18 | 6.1 KB | ~1,530 |
+| `server-calendar.js` | m365-calendar | 9 | 2.1 KB | ~533 |
+| `server-onedrive.js` | m365-onedrive | 11 | 3.1 KB | ~770 |
+| `server-power-automate.js` | m365-power-automate | 8 | 1.8 KB | ~459 |
+
+> **Context window note:** The "~Tokens" column shows the approximate token cost of just the tool definitions (at ~4 chars/token). Your model's context window must have room for these definitions *plus* the conversation. Recommended minimum context window: **8,192 tokens** for all tools, **4,096 tokens** for any single split server.
+
+**To enable only the services you need**, add separate MCP server entries to your client config — one for each service. Simply omit any services you don't want. For example, to enable only Email and Calendar in Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "m365-email": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-email.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    },
+    "m365-calendar": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-calendar.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+Each server shares the same `.env` file, credentials, and token storage — no extra configuration needed. You can also start individual servers via npm scripts:
+
+```bash
+npm run start:email           # Email, folders, rules only
+npm run start:calendar        # Calendar only
+npm run start:onedrive        # OneDrive only
+npm run start:power-automate  # Power Automate only
+npm start                     # All tools (default)
+```
+
 ## Authentication
 
 ### Graph API (Outlook + OneDrive)
@@ -350,14 +419,14 @@ npm run auth-server
 - Delete `~/.outlook-mcp-tokens.json` and re-authenticate
 
 **Agent only sees some tools / missing email or calendar tools**
-- This server exposes 36 tools. By default, all tools are returned in a single `tools/list` response (no pagination).
+- This server exposes 37 tools. By default, all tools are returned in a single `tools/list` response (no pagination).
 - Some MCP clients (e.g., Claude.ai) do not follow `nextCursor` pagination, so the default is to return everything at once.
 - If you previously set `MCP_TOOLS_PAGE_SIZE` to a small number (e.g., 10), the client may only see the first page of tools. Remove the variable or set it to `0` to disable pagination:
   ```bash
   # In your .env file or environment:
   MCP_TOOLS_PAGE_SIZE=0
   ```
-- **Minimum recommended context window: 8,192 tokens** (works well for all 36 tools)
+- **Minimum recommended context window: 8,192 tokens** (works well for all 37 tools)
 - **Minimum functional context window: 4,096 tokens** (tools load but very little room for conversation)
 - If your agent is missing tools, increase the model's context window or max tool tokens setting in your client configuration.
 

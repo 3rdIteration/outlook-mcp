@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Accept event handler
@@ -39,7 +40,7 @@ async function handleAcceptEvent(args) {
     return {
       content: [{
         type: "text",
-        text: `Event with ID ${eventId} has been successfully accepted.`
+        text: `Event with ID ${sanitizeMetadata(eventId)} has been successfully accepted.`
       }]
     };
   } catch (error) {
