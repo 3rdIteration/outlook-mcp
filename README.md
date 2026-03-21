@@ -13,7 +13,12 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 ## Directory Structure
 
 ```
-├── index.js                 # Main entry point
+├── index.js                 # Main entry point (all tools)
+├── server.js                # Shared MCP server factory
+├── server-email.js          # Email-only server entry point
+├── server-calendar.js       # Calendar-only server entry point
+├── server-onedrive.js       # OneDrive-only server entry point
+├── server-power-automate.js # Power Automate-only server entry point
 ├── config.js                # Configuration settings
 ├── auth/                    # Authentication modules
 │   ├── index.js             # Authentication exports
@@ -308,6 +313,53 @@ Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade �
     }
   }
 }
+```
+
+### Selective Service Configuration (Split Servers)
+
+By default, `index.js` loads all 36 tools. If you only need a subset of Microsoft 365 services, you can use the **focused server entry points** instead. This reduces context window usage and avoids exposing unnecessary tools to the AI assistant.
+
+| Entry Point | Server Name | Included Tools |
+|-------------|-------------|---------------|
+| `index.js` | m365-assistant | All tools (email, calendar, OneDrive, Power Automate) |
+| `server-email.js` | m365-email | Email, folders, rules + auth |
+| `server-calendar.js` | m365-calendar | Calendar + auth |
+| `server-onedrive.js` | m365-onedrive | OneDrive + auth |
+| `server-power-automate.js` | m365-power-automate | Power Automate + auth |
+
+**To enable only the services you need**, add separate MCP server entries to your client config — one for each service. Simply omit any services you don't want. For example, to enable only Email and Calendar in Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "m365-email": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-email.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    },
+    "m365-calendar": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-calendar.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+Each server shares the same `.env` file, credentials, and token storage — no extra configuration needed. You can also start individual servers via npm scripts:
+
+```bash
+npm run start:email           # Email, folders, rules only
+npm run start:calendar        # Calendar only
+npm run start:onedrive        # OneDrive only
+npm run start:power-automate  # Power Automate only
+npm start                     # All tools (default)
 ```
 
 ## Authentication

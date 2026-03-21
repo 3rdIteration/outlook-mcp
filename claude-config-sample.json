@@ -1,12 +1,46 @@
 {
+  "_comment": "Option A: All tools in one server (default)",
   "mcpServers": {
-    "outlook-assistant": {
+    "m365-assistant": {
       "command": "node",
-      "args": [
-        "/path/to/outlook-mcp/index.js"
-      ],
+      "args": ["/path/to/outlook-mcp/index.js"],
       "env": {
         "USE_TEST_MODE": "false",
+        "OUTLOOK_CLIENT_ID": "your-client-id-here",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret-here"
+      }
+    }
+  },
+  "_comment_split": "Option B: Enable only the services you need (remove any you don't)",
+  "mcpServers_split_example": {
+    "m365-email": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-email.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id-here",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret-here"
+      }
+    },
+    "m365-calendar": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-calendar.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id-here",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret-here"
+      }
+    },
+    "m365-onedrive": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-onedrive.js"],
+      "env": {
+        "OUTLOOK_CLIENT_ID": "your-client-id-here",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret-here"
+      }
+    },
+    "m365-power-automate": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/server-power-automate.js"],
+      "env": {
         "OUTLOOK_CLIENT_ID": "your-client-id-here",
         "OUTLOOK_CLIENT_SECRET": "your-client-secret-here"
       }
