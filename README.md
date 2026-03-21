@@ -233,7 +233,7 @@ USE_TEST_MODE=false
 
 This server works with any MCP-compatible client. Below are setup instructions for popular platforms.
 
-> **Stdio vs HTTP transports**: The default entry point (`index.js`) uses **stdio** transport — each AI client manages the process directly. For **OpenWebUI** (and any browser-based or remote client), use the HTTP server (`sse-server.js` / `npm run start:http`) which exposes a Streamable HTTP endpoint at `/mcp`. See the [OpenWebUI section](#openwebui) below for full setup instructions.
+> **Stdio vs HTTP transports**: The default entry point (`index.js`) uses **stdio** transport — the AI client manages the process directly. For browser-based clients like OpenWebUI, a proxy or HTTP transport is needed. See the [OpenWebUI section](#openwebui) below for options.
 
 #### Generic MCP Client (Command + ENV UI)
 
@@ -314,40 +314,158 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-level), or g
 
 #### OpenWebUI
 
-OpenWebUI (≥ 0.6.6) supports MCP natively over **Streamable HTTP**. Instead of the stdio-based `index.js`, run the dedicated HTTP server (`sse-server.js`) which serves all tools over HTTP on port 3001 (configurable).
+OpenWebUI is a browser-based chat UI. Because it cannot spawn local processes, you need a bridge between OpenWebUI and this stdio-based MCP server. There are two approaches:
 
-**Step 1 — Start the HTTP server**
+| | Approach A — mcpo (recommended) | Approach B — Native HTTP server |
+|---|---|---|
+| **How it works** | mcpo runs `index.js` as a subprocess over stdin/stdout, then exposes it as an OpenAPI HTTP endpoint | `sse-server.js` is a built-in HTTP server that directly implements the MCP Streamable HTTP protocol |
+| **OpenWebUI version** | Any version | ≥ 0.6.6 only |
+| **Credentials over HTTP?** | **No** — `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, and OAuth tokens stay on the machine running mcpo; OpenWebUI only receives tool results | Tool results travel over HTTP; credentials are still local |
+| **Auth flow** | OAuth handled by the existing `authenticate` MCP tool (opens a browser on the same machine) | Built-in `/auth` route on the same HTTP port |
+| **Setup complexity** | Requires Python / Docker for mcpo | Node.js only |
+
+---
+
+##### Approach A — mcpo proxy (recommended)
+
+[mcpo](https://github.com/open-webui/mcpo) is the official OpenWebUI bridge for MCP servers. It runs `index.js` as a local subprocess and proxies tool calls through stdin/stdout. **No credentials travel over HTTP** — `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, and the stored OAuth token never leave the machine where mcpo runs. OpenWebUI only receives the formatted tool results.
+
+**Step 1 — Install mcpo**
 
 ```bash
-# Copy and edit the .env file with your Microsoft credentials
-cp .env.example .env   # or create one manually
+# Using pip
+pip install mcpo
 
-MS_CLIENT_ID=your-client-id
-MS_CLIENT_SECRET=your-client-secret
-MS_TENANT_ID=common       # or your specific tenant ID
-
-# Start the server (default: http://0.0.0.0:3001)
-npm run start:http
+# Or with Docker (no Python needed):
+# docker run -p 8000:8000 ghcr.io/open-webui/mcpo:main --api-key "your-key" -- node /path/to/outlook-mcp/index.js
 ```
 
-> To change the port: `MCP_HTTP_PORT=8080 npm run start:http`
+**Step 2 — Start mcpo**
 
-**Step 2 — Authenticate with Microsoft**
+```bash
+mcpo --port 8000 --api-key "your-secret-key" -- \
+  env MS_CLIENT_ID=your-client-id \
+      MS_CLIENT_SECRET=your-client-secret \
+      MS_TENANT_ID=common \
+  node /path/to/outlook-mcp/index.js
+```
 
-Open `http://localhost:3001/auth` in your browser to complete the OAuth flow. Once authenticated, the token is stored and all MCP requests will be automatically authorized.
+mcpo starts `index.js` as a subprocess and exposes its tools at `http://localhost:8000`.
+
+Or use a config file for multiple servers (`mcpo.json`):
+
+```json
+{
+  "mcpServers": {
+    "m365-assistant": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/index.js"],
+      "env": {
+        "MS_CLIENT_ID": "your-client-id",
+        "MS_CLIENT_SECRET": "your-client-secret",
+        "MS_TENANT_ID": "common"
+      }
+    }
+  }
+}
+```
+
+```bash
+mcpo --port 8000 --api-key "your-secret-key" --config mcpo.json
+```
 
 **Step 3 — Add the server to OpenWebUI**
 
+1. Go to **Admin Panel → Settings → Tools → Add Tool Server**
+2. Set the URL to `http://localhost:8000` and the API key to the key you chose above
+3. Click **Save** — all M365 tools will appear in the tool list
+
+**Step 4 — Authenticate with Microsoft (first time only)**
+
+Use the `authenticate` tool through the OpenWebUI chat to start the OAuth flow:
+
+> *"Please authenticate with Microsoft so I can access your M365 account."*
+
+The tool returns an OAuth URL. Open it in a browser **on the same machine as mcpo** and complete the sign-in. The token is stored locally and all subsequent calls work automatically.
+
+> **Docker tip**: When running both OpenWebUI and mcpo in Docker Compose, put them on the same internal network and use the service name as the hostname. You can run mcpo inside the Docker network and only expose OpenWebUI publicly. Credentials are passed as Docker environment variables — they never cross the external network.
+
+---
+
+##### Approach B — Native HTTP server (`sse-server.js`)
+
+Use this when you want a single Node.js process that handles both OAuth and MCP, or when your OpenWebUI version (≥ 0.6.6) supports native Streamable HTTP.
+
+> ⚠️ **Security**: The HTTP server defaults to `127.0.0.1` (localhost only). HTTP on the loopback interface is safe. If OpenWebUI and this server run on **separate machines**, you **must** terminate TLS at a reverse proxy (nginx, Caddy) — see [HTTPS for network deployments](#https-for-network-deployments).
+
+**Step 1 — Configure credentials**
+
+```bash
+# Add to your .env file:
+MS_CLIENT_ID=your-azure-app-client-id
+MS_CLIENT_SECRET=your-azure-app-client-secret
+MS_TENANT_ID=common
+
+# OAuth redirect URI — must match your Azure app registration
+MS_REDIRECT_URI=http://localhost:3001/auth/callback
+```
+
+Add `http://localhost:3001/auth/callback` as a **Redirect URI** in your Azure app registration (Authentication → Web → Redirect URIs).
+
+**Step 2 — Start the HTTP server**
+
+```bash
+npm run start:http
+# Listens on http://127.0.0.1:3001
+```
+
+**Step 3 — Authenticate with Microsoft**
+
+Open `http://localhost:3001/auth` in your browser to complete the OAuth flow.
+
+**Step 4 — Add the server to OpenWebUI**
+
 1. Go to **Admin Panel → Settings → Tools → Add MCP Server**
-2. Fill in the form:
-   - **Name**: `M365 Assistant`
-   - **URL**: `http://your-server-address:3001/mcp`
+2. Fill in:
+   - **URL**: `http://localhost:3001/mcp`
    - **Type**: `MCP (Streamable HTTP)`
 3. Click **Save**.
 
-The M365 tools will now appear in OpenWebUI's tool list and can be used in chat sessions.
+#### HTTPS for network deployments
 
-> **Note on origins**: By default the server allows requests from any origin. In a production deployment, set `MCP_ALLOWED_ORIGIN=https://your-openwebui-host` to restrict cross-origin access.
+Required when `sse-server.js` (Approach B) is accessed from a different machine. Credentials stay local but **tool results travel in plaintext over HTTP** otherwise, and Microsoft enforces HTTPS for non-localhost OAuth redirect URIs.
+
+**Caddy (automatic TLS — easiest)**
+
+```caddyfile
+mcp.yourdomain.com {
+    reverse_proxy 127.0.0.1:3001
+}
+```
+
+**nginx**
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name mcp.yourdomain.com;
+    ssl_certificate     /etc/letsencrypt/live/mcp.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp.yourdomain.com/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_buffering off;   # required for SSE streams
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+With the proxy in place, update your environment:
+
+```bash
+MS_REDIRECT_URI=https://mcp.yourdomain.com/auth/callback
+MCP_ALLOWED_ORIGIN=https://your-openwebui-host
+```
 
 #### Windsurf
 

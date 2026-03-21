@@ -13,12 +13,28 @@
  *   - GET  /auth/callback     OAuth redirect handler
  *   - GET  /token-status      Check current authentication status
  *
+ * ⚠️  SECURITY — READ BEFORE EXPOSING TO A NETWORK ⚠️
+ *
+ * By default the server binds to 127.0.0.1 (localhost only). HTTP on the
+ * loopback interface is safe because traffic never leaves the machine.
+ *
+ * If you set MCP_HTTP_HOST=0.0.0.0 (or any non-localhost address) the server
+ * becomes reachable over the network. In that case you MUST put a TLS-
+ * terminating reverse proxy (nginx, Caddy, Traefik …) in front of it.
+ * Running plain HTTP on a network interface exposes:
+ *   • All Microsoft 365 data (emails, calendar, files) in plaintext.
+ *   • The OAuth authorization code in the /auth/callback URL, which can be
+ *     intercepted to steal tokens. (Microsoft also enforces HTTPS for
+ *     non-localhost redirect URIs in Azure app registrations.)
+ *
  * Configuration (environment variables):
- *   MCP_HTTP_PORT   Port to listen on          (default: 3001)
- *   MCP_HTTP_HOST   Bind address               (default: 0.0.0.0)
- *   MS_CLIENT_ID    Microsoft app client ID    (required)
- *   MS_CLIENT_SECRET Microsoft app client secret (required)
- *   MS_TENANT_ID    Azure tenant ID            (default: common)
+ *   MCP_HTTP_PORT        Port to listen on          (default: 3001)
+ *   MCP_HTTP_HOST        Bind address               (default: 127.0.0.1)
+ *   MCP_ALLOWED_ORIGIN   Allowed CORS origin        (required for non-localhost)
+ *   MS_CLIENT_ID         Microsoft app client ID    (required)
+ *   MS_CLIENT_SECRET     Microsoft app client secret (required)
+ *   MS_TENANT_ID         Azure tenant ID            (default: common)
+ *   MS_REDIRECT_URI      OAuth callback URL         (default: http://localhost:3001/auth/callback)
  *
  * Usage:
  *   node sse-server.js
@@ -58,6 +74,14 @@ const ALL_TOOLS = [
 // Single shared TokenStorage instance for auth checks
 const tokenStorage = new TokenStorage();
 
+/** Addresses considered local-only — HTTP is safe when bound to these. */
+const LOCALHOST_ADDRESSES = new Set(['127.0.0.1', 'localhost', '::1']);
+
+/** Returns true when the server is only reachable over the loopback interface. */
+function isLocalhostBinding(host) {
+  return LOCALHOST_ADDRESSES.has(host);
+}
+
 /**
  * Middleware: require a valid Microsoft access token before handling MCP requests.
  * Returns 401 with a JSON error body (and a link to /auth) when no token is found.
@@ -92,9 +116,23 @@ const app = express();
 app.use(express.json());
 
 // CORS — OpenWebUI and other browser clients send cross-origin requests.
-// Restrict the allowed origin via the MCP_ALLOWED_ORIGIN env var in production.
+// When the server is bound to localhost, we echo the request origin (safe,
+// because only local processes can connect). When bound to a network
+// interface, MCP_ALLOWED_ORIGIN MUST be set explicitly; serving a wildcard
+// '*' over HTTP on a network interface would let any web page on the LAN
+// make authenticated MCP requests on behalf of the user.
 app.use((req, res, next) => {
-  const allowedOrigin = process.env.MCP_ALLOWED_ORIGIN || req.headers.origin || '*';
+  let allowedOrigin;
+  if (process.env.MCP_ALLOWED_ORIGIN) {
+    allowedOrigin = process.env.MCP_ALLOWED_ORIGIN;
+  } else if (isLocalhostBinding(config.HTTP_HOST)) {
+    // Localhost binding: echo the request origin (or wildcard as fallback).
+    allowedOrigin = req.headers.origin || '*';
+  } else {
+    // Network binding without explicit origin: echo origin only.
+    // This is NOT safe over plain HTTP — use HTTPS + MCP_ALLOWED_ORIGIN.
+    allowedOrigin = req.headers.origin || 'null';
+  }
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader(
@@ -166,7 +204,9 @@ app.post('/mcp', requireAuth, async (req, res) => {
   await mcpServer.connect(transport);
   await transport.handleRequest(req, res, req.body);
   res.on('finish', () => {
-    mcpServer.close().catch(() => {});
+    mcpServer.close().catch((err) => {
+      console.error('Error closing MCP server after /mcp request:', err.message);
+    });
   });
 });
 
@@ -197,7 +237,9 @@ app.get('/sse', requireAuth, async (req, res) => {
 
   res.on('close', () => {
     delete sseSessions[sessionId];
-    mcpServer.close().catch(() => {});
+    mcpServer.close().catch((err) => {
+      console.error('Error closing MCP server after SSE session end:', err.message);
+    });
   });
 });
 
@@ -217,11 +259,34 @@ app.post('/messages', requireAuth, async (req, res) => {
 function startServer(port, host) {
   const listenPort = port || config.HTTP_PORT;
   const listenHost = host || config.HTTP_HOST;
+
+  // Warn loudly when the server is reachable over the network without TLS.
+  if (!isLocalhostBinding(listenHost)) {
+    console.error('');
+    console.error('╔══════════════════════════════════════════════════════════════╗');
+    console.error('║  ⚠️  SECURITY WARNING — PLAIN HTTP ON NETWORK INTERFACE  ⚠️  ║');
+    console.error('╠══════════════════════════════════════════════════════════════╣');
+    console.error(`║  Binding to ${String(listenHost).substring(0, 48).padEnd(48)}  ║`);
+    console.error('║                                                              ║');
+    console.error('║  HTTP traffic is NOT encrypted. This means:                 ║');
+    console.error('║  • Email / calendar / file data travels in plaintext.       ║');
+    console.error('║  • The OAuth auth code in /auth/callback can be captured.   ║');
+    console.error('║                                                              ║');
+    console.error('║  You MUST put a TLS-terminating reverse proxy (nginx,       ║');
+    console.error('║  Caddy, Traefik …) in front of this server.                 ║');
+    console.error('║  See the README for a recommended nginx/Caddy setup.        ║');
+    console.error('╚══════════════════════════════════════════════════════════════╝');
+    console.error('');
+  }
+
   return app.listen(listenPort, listenHost, () => {
     console.error(`MCP HTTP server listening on http://${listenHost}:${listenPort}`);
     console.error(`  Streamable HTTP : http://${listenHost}:${listenPort}/mcp`);
     console.error(`  Legacy SSE      : http://${listenHost}:${listenPort}/sse`);
     console.error(`  Auth            : http://${listenHost}:${listenPort}/auth`);
+    if (isLocalhostBinding(listenHost)) {
+      console.error('  (localhost-only — safe for plain HTTP)');
+    }
   });
 }
 

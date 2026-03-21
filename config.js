@@ -60,7 +60,9 @@ module.exports = {
 
   // HTTP/SSE server (for OpenWebUI and other HTTP-based MCP clients)
   // Set MCP_HTTP_PORT env var to change port (default: 3001).
-  // Set MCP_HTTP_HOST env var to change bind address (default: 0.0.0.0).
+  // Set MCP_HTTP_HOST env var to change bind address.
+  // Default is 127.0.0.1 (localhost only) — HTTP is safe on the loopback interface.
+  // Set to 0.0.0.0 only when using a TLS-terminating reverse proxy in front of this server.
   HTTP_PORT: parseInt(process.env.MCP_HTTP_PORT, 10) || 3001,
-  HTTP_HOST: process.env.MCP_HTTP_HOST || '0.0.0.0',
+  HTTP_HOST: process.env.MCP_HTTP_HOST || '127.0.0.1',
 };

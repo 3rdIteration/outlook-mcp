@@ -10,7 +10,11 @@ const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const config = require('./config');
 
-// Register SIGTERM handler once at the module level
+// Register SIGTERM handler once at the module level.
+// MCP clients (e.g. Claude Desktop) send SIGTERM when they want to gracefully
+// shut down but still expect the server process to stay alive until they close
+// the transport themselves.  Staying alive here prevents a premature exit that
+// would break active tool calls.
 process.on('SIGTERM', () => {
   console.error('SIGTERM received but staying alive');
 });

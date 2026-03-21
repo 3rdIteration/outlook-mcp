@@ -34,12 +34,35 @@ createAuthConfig.mockReturnValue({});
 // Now load the server AFTER mocks are in place
 const { app } = require('../sse-server');
 
+// Capture the setupOAuthRoutes call that happened at module-load time,
+// before any beforeEach clearAllMocks() can wipe the call record.
+const initialSetupOAuthCalls = {
+  count: setupOAuthRoutes.mock.calls.length,
+  firstCall: setupOAuthRoutes.mock.calls[0],
+  tokenStorageInstance: TokenStorage.mock.instances[0],
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+// --- OAuth routes wiring --------------------------------------------------
+
+describe('OAuth route setup', () => {
+  it('calls setupOAuthRoutes with the Express app and TokenStorage instance', () => {
+    // sse-server.js calls setupOAuthRoutes(app, tokenStorage, authConfig, 'MS_')
+    // at module load time — captured before beforeEach clears mock state.
+    expect(initialSetupOAuthCalls.count).toBe(1);
+    const [appArg, storageArg, , prefixArg] = initialSetupOAuthCalls.firstCall;
+    expect(appArg).toBe(app);
+    // The tokenStorage argument must be the shared instance returned by the mocked TokenStorage constructor
+    expect(storageArg).toBe(mockTokenStorageInstance);
+    expect(prefixArg).toBe('MS_');
+  });
 });
 
 // --- GET / ---------------------------------------------------------------
@@ -106,13 +129,22 @@ describe('GET /sse', () => {
 // --- POST /messages ------------------------------------------------------
 
 describe('POST /messages', () => {
-  it('returns 400 when sessionId is not provided', async () => {
+  it('returns 401 when no valid token exists', async () => {
+    mockTokenStorageInstance.getValidAccessToken.mockResolvedValue(null);
+    const res = await request(app).post('/messages').send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Authentication required.');
+  });
+
+  it('returns 400 when sessionId is not provided (authenticated)', async () => {
+    mockTokenStorageInstance.getValidAccessToken.mockResolvedValue('fake_token');
     const res = await request(app).post('/messages').send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/session/i);
   });
 
-  it('returns 400 for an unknown sessionId', async () => {
+  it('returns 400 for an unknown sessionId (authenticated)', async () => {
+    mockTokenStorageInstance.getValidAccessToken.mockResolvedValue('fake_token');
     const res = await request(app)
       .post('/messages')
       .query({ sessionId: 'nonexistent-session-id' })
