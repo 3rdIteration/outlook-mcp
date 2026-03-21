@@ -13,7 +13,7 @@ class TokenStorage {
       clientId: process.env.MS_CLIENT_ID,
       clientSecret: process.env.MS_CLIENT_SECRET,
       redirectUri: process.env.MS_REDIRECT_URI || 'http://localhost:3333/auth/callback',
-      scopes: (process.env.MS_SCOPES || 'offline_access User.Read Mail.Read').split(' '),
+      scopes: (process.env.MS_SCOPES || 'offline_access User.Read Mail.Read Mail.ReadWrite Mail.Send Calendars.Read Calendars.ReadWrite Files.Read Files.ReadWrite').split(' '),
       tenantId,
       tokenEndpoint: process.env.MS_TOKEN_ENDPOINT || `${authorityHost}/${tenantId}/oauth2/v2.0/token`,
       refreshTokenBuffer: 5 * 60 * 1000, // 5 minutes buffer for token refresh
@@ -52,6 +52,15 @@ class TokenStorage {
     }
     try {
       await fs.writeFile(this.config.tokenStorePath, JSON.stringify(this.tokens, null, 2));
+      // Restrict token file permissions to owner-only (read/write)
+      if (process.platform !== 'win32') {
+        try {
+          await fs.chmod(this.config.tokenStorePath, 0o600);
+        } catch (chmodError) {
+          // Best-effort: don't fail the save if chmod is unavailable
+          console.warn('Could not set token file permissions:', chmodError.message);
+        }
+      }
       console.log('Tokens saved successfully.');
       // return true; // No longer returning boolean, will throw on error.
     } catch (error) {

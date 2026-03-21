@@ -4,6 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List files handler
@@ -50,13 +51,13 @@ async function handleListFiles(args) {
       const size = item.size ? formatSize(item.size) : '';
       const modified = new Date(item.lastModifiedDateTime).toLocaleString();
 
-      return `${index + 1}. ${isFolder} ${item.name}${size ? ` (${size})` : ''}\n   Modified: ${modified}\n   ID: ${item.id}`;
+      return `${index + 1}. ${isFolder} ${sanitizeMetadata(item.name)}${size ? ` (${size})` : ''}\n   Modified: ${modified}\n   ID: ${item.id}`;
     }).join("\n\n");
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} items in ${path || 'root'}:\n\n${fileList}`
+        text: `Found ${response.value.length} items in ${path || 'root'}:\n\n${wrapWithBoundary(fileList, 'ONEDRIVE FILES')}`
       }]
     };
   } catch (error) {

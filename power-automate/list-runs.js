@@ -3,6 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List flow runs handler
@@ -60,13 +61,13 @@ async function handleListRuns(args) {
         ? formatDuration(new Date(props.endTime) - new Date(props.startTime))
         : 'N/A';
 
-      return `${index + 1}. ${statusIcon} ${status}\n   Run ID: ${run.name}\n   Started: ${startTime}\n   Duration: ${duration}`;
+      return `${index + 1}. ${statusIcon} ${sanitizeMetadata(status)}\n   Run ID: ${sanitizeMetadata(run.name)}\n   Started: ${startTime}\n   Duration: ${duration}`;
     }).join("\n\n");
 
     return {
       content: [{
         type: "text",
-        text: `Recent ${runs.length} run(s) for this flow:\n\n${runList}`
+        text: `Recent ${runs.length} run(s) for this flow:\n\n${wrapWithBoundary(runList, 'FLOW RUNS')}`
       }]
     };
   } catch (error) {

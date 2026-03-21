@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Get download URL handler
@@ -58,7 +59,7 @@ async function handleDownload(args) {
         return {
           content: [{
             type: "text",
-            text: `"${response.name}" is a folder and cannot be downloaded directly.`
+            text: `"${sanitizeMetadata(response.name)}" is a folder and cannot be downloaded directly.`
           }]
         };
       }
@@ -74,7 +75,7 @@ async function handleDownload(args) {
     return {
       content: [{
         type: "text",
-        text: `Download URL for "${response.name}" (${formatSize(response.size)}):\n\n${downloadUrl}\n\nNote: This URL is pre-authenticated and expires after a short time.`
+        text: `Download URL for "${sanitizeMetadata(response.name)}" (${formatSize(response.size)}):\n\n${downloadUrl}\n\nNote: This URL is pre-authenticated and expires after a short time.`
       }]
     };
   } catch (error) {

@@ -4,6 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * Search files handler
@@ -52,13 +53,13 @@ async function handleSearchFiles(args) {
       const modified = new Date(item.lastModifiedDateTime).toLocaleString();
       const path = item.parentReference?.path?.replace('/drive/root:', '') || '/';
 
-      return `${index + 1}. ${isFolder} ${item.name}${size ? ` (${size})` : ''}\n   Path: ${path}\n   Modified: ${modified}\n   ID: ${item.id}`;
+      return `${index + 1}. ${isFolder} ${sanitizeMetadata(item.name)}${size ? ` (${size})` : ''}\n   Path: ${path}\n   Modified: ${modified}\n   ID: ${item.id}`;
     }).join("\n\n");
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} items matching "${query}":\n\n${fileList}`
+        text: `Found ${response.value.length} items matching "${sanitizeMetadata(query)}":\n\n${wrapWithBoundary(fileList, 'SEARCH RESULTS')}`
       }]
     };
   } catch (error) {

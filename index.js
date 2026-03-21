@@ -62,19 +62,58 @@ server.fallbackRequestHandler = async (request) => {
       };
     }
     
-    // Tools list handler
+    // Tools list handler with optional cursor-based pagination
     if (method === "tools/list") {
       console.error(`TOOLS LIST REQUEST: ID [${id}]`);
       console.error(`TOOLS COUNT: ${TOOLS.length}`);
       console.error(`TOOLS NAMES: ${TOOLS.map(t => t.name).join(', ')}`);
       
-      return {
-        tools: TOOLS.map(tool => ({
+      const pageSize = config.TOOLS_PAGE_SIZE;
+
+      // When pageSize is 0 or negative, return all tools without pagination
+      if (pageSize <= 0) {
+        console.error(`TOOLS PAGE: 0-${TOOLS.length - 1} of ${TOOLS.length} (no pagination)`);
+        return {
+          tools: TOOLS.map(tool => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema
+          }))
+        };
+      }
+
+      const cursor = params?.cursor;
+      let startIndex = 0;
+
+      if (cursor) {
+        try {
+          startIndex = parseInt(Buffer.from(cursor, 'base64').toString('utf8'), 10);
+        } catch {
+          startIndex = 0;
+        }
+        if (isNaN(startIndex) || startIndex < 0 || startIndex >= TOOLS.length) {
+          startIndex = 0;
+        }
+      }
+
+      const endIndex = Math.min(startIndex + pageSize, TOOLS.length);
+      const pageTools = TOOLS.slice(startIndex, endIndex);
+
+      console.error(`TOOLS PAGE: ${startIndex}-${endIndex - 1} of ${TOOLS.length}`);
+
+      const result = {
+        tools: pageTools.map(tool => ({
           name: tool.name,
           description: tool.description,
           inputSchema: tool.inputSchema
         }))
       };
+
+      if (endIndex < TOOLS.length) {
+        result.nextCursor = Buffer.from(String(endIndex)).toString('base64');
+      }
+
+      return result;
     }
     
     // Required empty responses for other capabilities

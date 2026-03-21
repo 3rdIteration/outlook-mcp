@@ -3,6 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List flows handler
@@ -52,13 +53,13 @@ async function handleListFlows(args) {
       const triggerType = props.definition?.triggers ? Object.keys(props.definition.triggers)[0] : 'Unknown';
       const created = props.createdTime ? new Date(props.createdTime).toLocaleDateString() : 'Unknown';
 
-      return `${index + 1}. ${stateIcon} ${props.displayName || flow.name}\n   ID: ${flow.name}\n   Trigger: ${triggerType}\n   Created: ${created}`;
+      return `${index + 1}. ${stateIcon} ${sanitizeMetadata(props.displayName || flow.name)}\n   ID: ${flow.name}\n   Trigger: ${triggerType}\n   Created: ${created}`;
     }).join("\n\n");
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} flow(s) in environment:\n\n${flowList}`
+        text: `Found ${response.value.length} flow(s) in environment:\n\n${wrapWithBoundary(flowList, 'FLOWS')}`
       }]
     };
   } catch (error) {

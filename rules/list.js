@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * List rules handler
@@ -89,7 +90,7 @@ function formatRulesList(rules, includeDetails) {
     // Detailed format
     const detailedRules = sortedRules.map((rule, index) => {
       // Format rule header with sequence
-      let ruleText = `${index + 1}. ${rule.displayName}${rule.isEnabled ? '' : ' (Disabled)'} - Sequence: ${rule.sequence || 'N/A'}`;
+      let ruleText = `${index + 1}. ${sanitizeMetadata(rule.displayName)}${rule.isEnabled ? '' : ' (Disabled)'} - Sequence: ${rule.sequence || 'N/A'}`;
       
       // Format conditions
       const conditions = formatRuleConditions(rule);
@@ -106,14 +107,14 @@ function formatRulesList(rules, includeDetails) {
       return ruleText;
     });
     
-    return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${detailedRules.join('\n\n')}\n\nRules are processed in order of their sequence number. You can change rule order using the 'edit-rule-sequence' tool.`;
+    return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${wrapWithBoundary(detailedRules.join('\n\n'), 'INBOX RULES')}\n\nRules are processed in order of their sequence number. You can change rule order using the 'edit-rule-sequence' tool.`;
   } else {
     // Simple format
     const simpleRules = sortedRules.map((rule, index) => {
-      return `${index + 1}. ${rule.displayName}${rule.isEnabled ? '' : ' (Disabled)'} - Sequence: ${rule.sequence || 'N/A'}`;
+      return `${index + 1}. ${sanitizeMetadata(rule.displayName)}${rule.isEnabled ? '' : ' (Disabled)'} - Sequence: ${rule.sequence || 'N/A'}`;
     });
     
-    return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${simpleRules.join('\n')}\n\nTip: Use 'list-rules with includeDetails=true' to see more information about each rule.`;
+    return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${wrapWithBoundary(simpleRules.join('\n'), 'INBOX RULES')}\n\nTip: Use 'list-rules with includeDetails=true' to see more information about each rule.`;
   }
 }
 
@@ -127,18 +128,18 @@ function formatRuleConditions(rule) {
   
   // From addresses
   if (rule.conditions?.fromAddresses?.length > 0) {
-    const senders = rule.conditions.fromAddresses.map(addr => addr.emailAddress.address).join(', ');
+    const senders = rule.conditions.fromAddresses.map(addr => sanitizeMetadata(addr.emailAddress.address)).join(', ');
     conditions.push(`From: ${senders}`);
   }
   
   // Subject contains
   if (rule.conditions?.subjectContains?.length > 0) {
-    conditions.push(`Subject contains: "${rule.conditions.subjectContains.join(', ')}"`);
+    conditions.push(`Subject contains: "${sanitizeMetadata(rule.conditions.subjectContains.join(', '))}"`);
   }
   
   // Contains body text
   if (rule.conditions?.bodyContains?.length > 0) {
-    conditions.push(`Body contains: "${rule.conditions.bodyContains.join(', ')}"`);
+    conditions.push(`Body contains: "${sanitizeMetadata(rule.conditions.bodyContains.join(', '))}"`);
   }
   
   // Has attachment
@@ -184,7 +185,7 @@ function formatRuleActions(rule) {
   
   // Forward
   if (rule.actions?.forwardTo?.length > 0) {
-    const recipients = rule.actions.forwardTo.map(r => r.emailAddress.address).join(', ');
+    const recipients = rule.actions.forwardTo.map(r => sanitizeMetadata(r.emailAddress.address)).join(', ');
     actions.push(`Forward to: ${recipients}`);
   }
   

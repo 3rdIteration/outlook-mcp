@@ -8,6 +8,7 @@ const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { processHtmlEmail, sanitizeHtmlToText } = require('../utils/html-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * Read email handler
@@ -53,12 +54,12 @@ async function handleReadEmail(args) {
         };
       }
 
-      // Format sender, recipients, etc.
-      const sender = email.from ? `${email.from.emailAddress.name} (${email.from.emailAddress.address})` : 'Unknown';
+      // Format sender, recipients, etc. (sanitize metadata to prevent prompt injection)
+      const sender = email.from ? `${sanitizeMetadata(email.from.emailAddress.name)} (${sanitizeMetadata(email.from.emailAddress.address)})` : 'Unknown';
       const senderAddress = email.from?.emailAddress?.address || 'unknown';
-      const to = email.toRecipients ? email.toRecipients.map(r => `${r.emailAddress.name} (${r.emailAddress.address})`).join(", ") : 'None';
-      const cc = email.ccRecipients && email.ccRecipients.length > 0 ? email.ccRecipients.map(r => `${r.emailAddress.name} (${r.emailAddress.address})`).join(", ") : 'None';
-      const bcc = email.bccRecipients && email.bccRecipients.length > 0 ? email.bccRecipients.map(r => `${r.emailAddress.name} (${r.emailAddress.address})`).join(", ") : 'None';
+      const to = email.toRecipients ? email.toRecipients.map(r => `${sanitizeMetadata(r.emailAddress.name)} (${sanitizeMetadata(r.emailAddress.address)})`).join(", ") : 'None';
+      const cc = email.ccRecipients && email.ccRecipients.length > 0 ? email.ccRecipients.map(r => `${sanitizeMetadata(r.emailAddress.name)} (${sanitizeMetadata(r.emailAddress.address)})`).join(", ") : 'None';
+      const bcc = email.bccRecipients && email.bccRecipients.length > 0 ? email.bccRecipients.map(r => `${sanitizeMetadata(r.emailAddress.name)} (${sanitizeMetadata(r.emailAddress.address)})`).join(", ") : 'None';
       const date = new Date(email.receivedDateTime).toLocaleString();
 
       // Extract and sanitize body content
@@ -96,7 +97,7 @@ async function handleReadEmail(args) {
       // Format the email
       const formattedEmail = `From: ${sender}
 To: ${to}
-${cc !== 'None' ? `CC: ${cc}\n` : ''}${bcc !== 'None' ? `BCC: ${bcc}\n` : ''}Subject: ${email.subject}
+${cc !== 'None' ? `CC: ${cc}\n` : ''}${bcc !== 'None' ? `BCC: ${bcc}\n` : ''}Subject: ${sanitizeMetadata(email.subject)}
 Date: ${date}
 Importance: ${email.importance || 'normal'}
 Has Attachments: ${email.hasAttachments ? 'Yes' : 'No'}
@@ -113,7 +114,7 @@ ${body}`;
         content: [
           {
             type: "text",
-            text: formattedEmail + rawHtmlSection
+            text: wrapWithBoundary(formattedEmail, 'EMAIL') + rawHtmlSection
           }
         ]
       };

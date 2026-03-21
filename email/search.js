@@ -5,6 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
+const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
 
 /**
  * Search emails handler
@@ -287,7 +288,7 @@ function formatSearchResults(response) {
     const date = new Date(email.receivedDateTime).toLocaleString();
     const readStatus = email.isRead ? '' : '[UNREAD] ';
     
-    return `${index + 1}. ${readStatus}${date} - From: ${sender.name} (${sender.address})\nSubject: ${email.subject}\nID: ${email.id}\n`;
+    return `${index + 1}. ${readStatus}${date} - From: ${sanitizeMetadata(sender.name)} (${sanitizeMetadata(sender.address)})\nSubject: ${sanitizeMetadata(email.subject)}\nID: ${email.id}\n`;
   }).join("\n");
   
   // Add search strategy info if available
@@ -299,7 +300,7 @@ function formatSearchResults(response) {
   return {
     content: [{ 
       type: "text", 
-      text: `Found ${response.value.length} emails matching your search criteria:${additionalInfo}\n\n${emailList}`
+      text: `Found ${response.value.length} emails matching your search criteria:${additionalInfo}\n\n${wrapWithBoundary(emailList, 'SEARCH RESULTS')}`
     }]
   };
 }

@@ -3,6 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Run flow handler
@@ -56,7 +57,7 @@ async function handleRunFlow(args) {
     const response = await callFlowAPI(accessToken, 'POST', path, inputData);
 
     // The response might include run details or just acknowledgment
-    const runId = response.name || response.id || 'initiated';
+    const runId = sanitizeMetadata(response.name || response.id || 'initiated');
 
     return {
       content: [{

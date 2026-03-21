@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Create folder handler
@@ -54,7 +55,7 @@ async function handleCreateFolder(args) {
     return {
       content: [{
         type: "text",
-        text: `Successfully created folder "${response.name}"\n\nID: ${response.id}\nWeb URL: ${response.webUrl}`
+        text: `Successfully created folder "${sanitizeMetadata(response.name)}"\n\nID: ${response.id}\nWeb URL: ${response.webUrl}`
       }]
     };
   } catch (error) {
@@ -128,7 +129,7 @@ async function handleDeleteItem(args) {
     return {
       content: [{
         type: "text",
-        text: `Successfully deleted ${isFolder ? 'folder' : 'file'} "${itemName}".`
+        text: `Successfully deleted ${isFolder ? 'folder' : 'file'} "${sanitizeMetadata(itemName)}".`
       }]
     };
   } catch (error) {

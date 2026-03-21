@@ -2,7 +2,7 @@
 
 # M365 Assistant MCP Server
 
-A comprehensive MCP (Model Context Protocol) server that connects Claude with Microsoft 365 services through the Microsoft Graph API and Power Automate API.
+A comprehensive MCP (Model Context Protocol) server that connects AI assistants with Microsoft 365 services through the Microsoft Graph API and Power Automate API. Works with any MCP-compatible client including Claude Desktop, VS Code (GitHub Copilot), Cursor, and Windsurf.
 
 ## Supported Services
 
@@ -33,7 +33,10 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 │   ├── search.js            # Search emails
 │   ├── read.js              # Read email
 │   ├── send.js              # Send email
-│   └── mark-as-read.js      # Mark email read/unread
+│   ├── draft.js             # Create email draft
+│   ├── mark-as-read.js      # Mark email read/unread
+│   ├── attachments.js       # List/download attachments
+│   └── folder-utils.js      # Folder lookup utilities
 ├── folder/                  # Folder functionality
 │   ├── index.js             # Folder exports
 │   ├── list.js              # List folders
@@ -63,13 +66,15 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 └── utils/                   # Utility functions
     ├── graph-api.js         # Microsoft Graph API helper
     ├── odata-helpers.js     # OData query building
+    ├── html-sanitizer.js    # HTML email sanitization
+    ├── metadata-sanitizer.js # Metadata sanitization
     └── mock-data.js         # Test mode data
 ```
 
 ## Features
 
 - **Authentication**: OAuth 2.0 authentication with Microsoft Graph API (+ Flow API for Power Automate)
-- **Email Management**: List, search, read, send, and organize emails
+- **Email Management**: List, search, read, send, draft, and organize emails with attachment support
 - **Calendar Management**: List, create, accept, decline, and delete calendar events
 - **OneDrive Integration**: List, search, upload, download, and share files
 - **Power Automate**: List environments/flows, trigger flows, view run history
@@ -85,7 +90,11 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 | `search-emails` | Search emails with filters |
 | `read-email` | Read email content |
 | `send-email` | Send a new email |
+| `draft-email` | Create and save an email draft |
 | `mark-as-read` | Mark email as read/unread |
+| `list-email-attachments` | List all attachments for a specific email |
+| `download-email-attachment` | Download a specific attachment from an email |
+| `download-email-attachments` | Download all attachments from an email (optionally save to disk) |
 | `list-events` | List calendar events |
 | `create-event` | Create calendar event |
 | `accept-event` | Accept event invitation |
@@ -123,10 +132,10 @@ A comprehensive MCP (Model Context Protocol) server that connects Claude with Mi
 1. **Install dependencies**: `npm install`
 2. **Azure setup**: Register app in Azure Portal (see detailed steps below)
 3. **Configure environment**: Copy `.env.example` to `.env` and add your Azure credentials
-4. **Configure Claude**: Update your Claude Desktop config with the server path
+4. **Configure your MCP client**: Add the server to Claude Desktop, VS Code, Cursor, Windsurf, or any MCP-compatible client
 5. **Start auth server**: `npm run auth-server`
-6. **Authenticate**: Use the authenticate tool in Claude to get the OAuth URL
-7. **Start using**: Access your M365 data through Claude!
+6. **Authenticate**: Use the authenticate tool in your MCP client to get the OAuth URL
+7. **Start using**: Access your M365 data through your AI assistant!
 
 ## Installation
 
@@ -197,12 +206,93 @@ USE_TEST_MODE=false
 **Important Notes:**
 - Use `MS_CLIENT_ID` and `MS_CLIENT_SECRET` in the `.env` file
 - Set `MS_TENANT_ID` for single-tenant apps to avoid `/common` endpoint errors
-- For Claude Desktop config, you'll use `OUTLOOK_CLIENT_ID` and `OUTLOOK_CLIENT_SECRET`
+- For MCP client configs, you'll use `OUTLOOK_CLIENT_ID` and `OUTLOOK_CLIENT_SECRET`
 - Always use the client secret **VALUE**, never the Secret ID
 
-### 2. Claude Desktop Configuration
+### 2. MCP Client Configuration
 
-Add to your Claude Desktop config:
+This server works with any MCP-compatible client. Below are setup instructions for popular platforms.
+
+#### Generic MCP Client (Command + ENV UI)
+
+Many MCP clients provide a simple form with a **Command** field and **ENV** key/value pairs. Use the following values:
+
+**Command:**
+```
+node /path/to/outlook-mcp/index.js
+```
+
+**Environment Variables:**
+| Key | Value |
+|-----|-------|
+| `OUTLOOK_CLIENT_ID` | Your Azure application client ID |
+| `OUTLOOK_CLIENT_SECRET` | Your Azure client secret VALUE |
+| `USE_TEST_MODE` | `false` |
+
+#### Claude Desktop
+
+Add to your Claude Desktop config (`claude_desktop_config.json`). A ready-to-edit sample is provided in [`claude-config-sample.json`](claude-config-sample.json).
+
+```json
+{
+  "mcpServers": {
+    "m365-assistant": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/index.js"],
+      "env": {
+        "USE_TEST_MODE": "false",
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+#### VS Code (GitHub Copilot)
+
+Add to `.vscode/mcp.json` in your workspace, or open the user-level config via the Command Palette → `MCP: Open User Configuration`. A ready-to-edit sample is provided in [`vscode-config-sample.json`](vscode-config-sample.json).
+
+```json
+{
+  "servers": {
+    "m365-assistant": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/index.js"],
+      "env": {
+        "USE_TEST_MODE": "false",
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+#### Cursor
+
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-level), or go to **Settings → Tools & MCP → Add Custom MCP**. A ready-to-edit sample is provided in [`cursor-config-sample.json`](cursor-config-sample.json).
+
+```json
+{
+  "mcpServers": {
+    "m365-assistant": {
+      "command": "node",
+      "args": ["/path/to/outlook-mcp/index.js"],
+      "env": {
+        "USE_TEST_MODE": "false",
+        "OUTLOOK_CLIENT_ID": "your-client-id",
+        "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+#### Windsurf
+
+Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade → MCP Servers → Add custom server**. A ready-to-edit sample is provided in [`windsurf-config-sample.json`](windsurf-config-sample.json).
 
 ```json
 {
@@ -225,7 +315,7 @@ Add to your Claude Desktop config:
 ### Graph API (Outlook + OneDrive)
 
 1. Start auth server: `npm run auth-server`
-2. Use the `authenticate` tool in Claude
+2. Use the `authenticate` tool in your MCP client
 3. Visit the provided URL and sign in
 4. Tokens saved to `~/.outlook-mcp-tokens.json`
 
@@ -258,6 +348,18 @@ npm run auth-server
 
 **"Authentication required"**
 - Delete `~/.outlook-mcp-tokens.json` and re-authenticate
+
+**Agent only sees some tools / missing email or calendar tools**
+- This server exposes 36 tools. By default, all tools are returned in a single `tools/list` response (no pagination).
+- Some MCP clients (e.g., Claude.ai) do not follow `nextCursor` pagination, so the default is to return everything at once.
+- If you previously set `MCP_TOOLS_PAGE_SIZE` to a small number (e.g., 10), the client may only see the first page of tools. Remove the variable or set it to `0` to disable pagination:
+  ```bash
+  # In your .env file or environment:
+  MCP_TOOLS_PAGE_SIZE=0
+  ```
+- **Minimum recommended context window: 8,192 tokens** (works well for all 36 tools)
+- **Minimum functional context window: 4,096 tokens** (tools load but very little room for conversation)
+- If your agent is missing tools, increase the model's context window or max tool tokens setting in your client configuration.
 
 ## Testing
 

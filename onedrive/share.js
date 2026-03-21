@@ -3,6 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
+const { sanitizeMetadata } = require('../utils/metadata-sanitizer');
 
 /**
  * Create sharing link handler
@@ -69,7 +70,7 @@ async function handleShare(args) {
 
     const linkInfo = response.link;
     const shareText = itemName
-      ? `Sharing link created for "${itemName}":`
+      ? `Sharing link created for "${sanitizeMetadata(itemName)}":`
       : `Sharing link created:`;
 
     return {
