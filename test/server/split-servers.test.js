@@ -189,4 +189,10 @@ describe('every tool has required fields', () => {
       expect(tool).toHaveProperty('inputSchema');
     }
   });
+
+  test.each(servers)('$label server tools all have callable handler functions', ({ tools }) => {
+    for (const tool of tools) {
+      expect(typeof tool.handler).toBe('function');
+    }
+  });
 });
