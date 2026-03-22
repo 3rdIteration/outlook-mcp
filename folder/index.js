@@ -53,7 +53,7 @@ const folderTools = [
       properties: {
         emailIds: {
           type: "string",
-          description: "Comma-separated email IDs"
+          description: "Comma-separated email IDs (from list-emails or search-emails)"
         },
         targetFolder: {
           type: "string",

@@ -81,7 +81,7 @@ const emailTools = [
       properties: {
         id: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         includeRawHtml: {
           type: "boolean",
@@ -180,7 +180,7 @@ const emailTools = [
       properties: {
         id: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         isRead: {
           type: "boolean",
@@ -199,7 +199,7 @@ const emailTools = [
       properties: {
         id: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         }
       },
       required: ["id"]
@@ -214,7 +214,7 @@ const emailTools = [
       properties: {
         emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         attachmentId: {
           type: "string",
@@ -233,7 +233,7 @@ const emailTools = [
       properties: {
         emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         saveToPath: {
           type: "string",
