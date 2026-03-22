@@ -13,20 +13,20 @@ const { processHtmlEmail } = require('../../utils/html-sanitizer');
 // --- config defaults ---
 
 describe('content length limit config defaults', () => {
-  test('MAX_SUBJECT_LENGTH defaults to 500', () => {
-    expect(config.MAX_SUBJECT_LENGTH).toBe(500);
+  test('MAX_SUBJECT_LENGTH defaults to 100', () => {
+    expect(config.MAX_SUBJECT_LENGTH).toBe(100);
   });
 
-  test('MAX_SENDER_LENGTH defaults to 200', () => {
-    expect(config.MAX_SENDER_LENGTH).toBe(200);
+  test('MAX_SENDER_LENGTH defaults to 100', () => {
+    expect(config.MAX_SENDER_LENGTH).toBe(100);
   });
 
   test('MAX_BODY_PREVIEW_LENGTH defaults to 500', () => {
     expect(config.MAX_BODY_PREVIEW_LENGTH).toBe(500);
   });
 
-  test('MAX_BODY_LENGTH defaults to 50000', () => {
-    expect(config.MAX_BODY_LENGTH).toBe(50000);
+  test('MAX_BODY_LENGTH defaults to 5000', () => {
+    expect(config.MAX_BODY_LENGTH).toBe(5000);
   });
 });
 
@@ -42,7 +42,7 @@ describe('sanitizeMetadata respects per-field limits', () => {
   });
 
   test('sender name is truncated to MAX_SENDER_LENGTH', () => {
-    const longName = 'B'.repeat(500);
+    const longName = 'B'.repeat(300);
     const result = sanitizeMetadata(longName, config.MAX_SENDER_LENGTH);
     expect(result.length).toBeLessThanOrEqual(config.MAX_SENDER_LENGTH + 1);
     expect(result).toContain('…');

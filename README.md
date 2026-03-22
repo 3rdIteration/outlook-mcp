@@ -397,6 +397,25 @@ Power Automate requires a separate token with the Flow API scope. Configure addi
 - Only manual trigger flows can be run via API
 - Requires environment ID for most operations
 
+## Content Length Limits
+
+To prevent malicious or abnormally large emails from overflowing the LLM context window, all external text fields are truncated to configurable limits before being passed to the model.
+
+| Field | Default | Environment Variable |
+|-------|--------:|----------------------|
+| Subject | 100 chars | `MCP_MAX_SUBJECT_LENGTH` |
+| Sender / recipient names | 100 chars | `MCP_MAX_SENDER_LENGTH` |
+| Body preview | 500 chars | `MCP_MAX_BODY_PREVIEW_LENGTH` |
+| Full email body | 5,000 chars | `MCP_MAX_BODY_LENGTH` |
+
+Override any limit by setting the corresponding environment variable:
+
+```bash
+# In your .env file or MCP client env block:
+MCP_MAX_SUBJECT_LENGTH=200
+MCP_MAX_BODY_LENGTH=10000
+```
+
 ## Troubleshooting
 
 ### Common Issues

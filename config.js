@@ -50,10 +50,10 @@ module.exports = {
   // Content length limits — prevent malicious content from overflowing the LLM
   // context window.  Each limit has a sensible default that can be overridden
   // via the corresponding environment variable.
-  MAX_SUBJECT_LENGTH: parseInt(process.env.MCP_MAX_SUBJECT_LENGTH, 10) || 500,
-  MAX_SENDER_LENGTH: parseInt(process.env.MCP_MAX_SENDER_LENGTH, 10) || 200,
+  MAX_SUBJECT_LENGTH: parseInt(process.env.MCP_MAX_SUBJECT_LENGTH, 10) || 100,
+  MAX_SENDER_LENGTH: parseInt(process.env.MCP_MAX_SENDER_LENGTH, 10) || 100,
   MAX_BODY_PREVIEW_LENGTH: parseInt(process.env.MCP_MAX_BODY_PREVIEW_LENGTH, 10) || 500,
-  MAX_BODY_LENGTH: parseInt(process.env.MCP_MAX_BODY_LENGTH, 10) || 50000,
+  MAX_BODY_LENGTH: parseInt(process.env.MCP_MAX_BODY_LENGTH, 10) || 5000,
 
   // Timezone
   DEFAULT_TIMEZONE: "Central European Standard Time",
