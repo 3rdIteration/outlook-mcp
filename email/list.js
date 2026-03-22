@@ -5,7 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List emails handler
@@ -42,6 +42,9 @@ async function handleListEmails(args) {
       };
     }
     
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+    
     // Build structured results with sanitized fields
     const emails = response.value.map((email) => {
       const sender = email.from ? email.from.emailAddress : { name: 'Unknown', address: 'unknown' };
@@ -64,12 +67,18 @@ async function handleListEmails(args) {
       };
     });
     
-    const emailList = JSON.stringify(emails, null, 2);
+    // Wrap emails array in object with boundary token to prevent JSON spoofing
+    const payload = {
+      _boundary: boundaryToken,
+      emails
+    };
+    
+    const emailList = JSON.stringify(payload, null, 2);
     
     return {
       content: [{ 
         type: "text", 
-        text: `Found ${response.value.length} emails in ${folder}:\n\n${wrapWithBoundary(emailList, 'EMAIL LIST')}`
+        text: `Found ${response.value.length} emails in ${folder}:\n\n${wrapWithBoundary(emailList, 'EMAIL LIST', boundaryToken)}`
       }]
     };
   } catch (error) {

@@ -7,6 +7,7 @@
 const {
   sanitizeMetadata,
   wrapWithBoundary,
+  generateBoundaryToken,
   MAX_METADATA_LENGTH,
   CONTROL_CHARS_REGEX
 } = require('../../utils/metadata-sanitizer');
@@ -289,6 +290,31 @@ describe('Metadata Sanitizer Security Tests', () => {
         const result = wrapWithBoundary('test', 'X');
         const token = result.match(/\[boundary:([a-f0-9]{32})\]/)[1];
         tokens.add(token);
+      }
+      expect(tokens.size).toBe(10);
+    });
+
+    test('uses pre-generated token when provided', () => {
+      const token = generateBoundaryToken();
+      const result = wrapWithBoundary('content', 'TEST', token);
+      expect(result).toContain(`[boundary:${token}]`);
+      // Both start and end should use the same provided token
+      const matches = result.match(/\[boundary:([a-f0-9]{32})\]/g);
+      expect(matches).toHaveLength(2);
+      expect(matches[0]).toBe(matches[1]);
+    });
+  });
+
+  describe('generateBoundaryToken', () => {
+    test('returns a 32-character hex string', () => {
+      const token = generateBoundaryToken();
+      expect(token).toMatch(/^[a-f0-9]{32}$/);
+    });
+
+    test('generates unique tokens on each call', () => {
+      const tokens = new Set();
+      for (let i = 0; i < 10; i++) {
+        tokens.add(generateBoundaryToken());
       }
       expect(tokens.size).toBe(10);
     });

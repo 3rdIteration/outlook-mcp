@@ -5,7 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * Search emails handler
@@ -282,6 +282,9 @@ function formatSearchResults(response) {
     };
   }
   
+  // Generate a shared boundary token for JSON payload and outer markers
+  const boundaryToken = generateBoundaryToken();
+  
   // Build structured results with sanitized fields
   const emails = response.value.map((email) => {
     const sender = email.from?.emailAddress || { name: 'Unknown', address: 'unknown' };
@@ -304,7 +307,13 @@ function formatSearchResults(response) {
     };
   });
   
-  const emailList = JSON.stringify(emails, null, 2);
+  // Wrap emails array in object with boundary token to prevent JSON spoofing
+  const payload = {
+    _boundary: boundaryToken,
+    emails
+  };
+  
+  const emailList = JSON.stringify(payload, null, 2);
   
   // Add search strategy info if available
   let additionalInfo = '';
@@ -315,7 +324,7 @@ function formatSearchResults(response) {
   return {
     content: [{ 
       type: "text", 
-      text: `Found ${response.value.length} emails matching your search criteria:${additionalInfo}\n\n${wrapWithBoundary(emailList, 'SEARCH RESULTS')}`
+      text: `Found ${response.value.length} emails matching your search criteria:${additionalInfo}\n\n${wrapWithBoundary(emailList, 'SEARCH RESULTS', boundaryToken)}`
     }]
   };
 }

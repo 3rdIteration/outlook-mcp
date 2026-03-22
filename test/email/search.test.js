@@ -9,6 +9,7 @@ jest.mock('../../email/folder-utils');
 
 /**
  * Extract the JSON content from between boundary markers in the response text.
+ * Returns the parsed payload object with _boundary and emails fields.
  */
 function extractJsonFromBoundary(text) {
   // Match the content between START ---\n and \n--- END lines
@@ -79,7 +80,8 @@ describe('handleSearchEmails', () => {
       callGraphAPIPaginated.mockResolvedValue({ value: mockEmails });
 
       const result = await handleSearchEmails({ query: 'test' });
-      const emails = extractJsonFromBoundary(result.content[0].text);
+      const payload = extractJsonFromBoundary(result.content[0].text);
+      const emails = payload.emails;
 
       expect(emails).toHaveLength(2);
 
@@ -111,11 +113,11 @@ describe('handleSearchEmails', () => {
       callGraphAPIPaginated.mockResolvedValue({ value: mockEmails });
 
       const result = await handleSearchEmails({ subject: 'Test' });
-      const emails = extractJsonFromBoundary(result.content[0].text);
+      const payload = extractJsonFromBoundary(result.content[0].text);
 
-      // IDs should be directly accessible as top-level fields
-      expect(emails[0].id).toBe('email-1');
-      expect(emails[1].id).toBe('email-2');
+      // IDs should be directly accessible as top-level fields on each email
+      expect(payload.emails[0].id).toBe('email-1');
+      expect(payload.emails[1].id).toBe('email-2');
     });
 
     test('should sanitize metadata fields in JSON output', async () => {
@@ -141,7 +143,8 @@ describe('handleSearchEmails', () => {
       callGraphAPIPaginated.mockResolvedValue({ value: maliciousEmails });
 
       const result = await handleSearchEmails({ query: 'test' });
-      const emails = extractJsonFromBoundary(result.content[0].text);
+      const payload = extractJsonFromBoundary(result.content[0].text);
+      const emails = payload.emails;
 
       // Verify newlines are stripped from sanitized fields
       expect(emails[0].subject).not.toContain('\n');
@@ -163,10 +166,10 @@ describe('handleSearchEmails', () => {
       callGraphAPIPaginated.mockResolvedValue({ value: emailWithoutSender });
 
       const result = await handleSearchEmails({ query: 'test' });
-      const emails = extractJsonFromBoundary(result.content[0].text);
+      const payload = extractJsonFromBoundary(result.content[0].text);
 
-      expect(emails[0].from.name).toBe('Unknown');
-      expect(emails[0].from.address).toBe('unknown');
+      expect(payload.emails[0].from.name).toBe('Unknown');
+      expect(payload.emails[0].from.address).toBe('unknown');
     });
 
     test('should wrap results with boundary markers', async () => {
@@ -180,6 +183,24 @@ describe('handleSearchEmails', () => {
       expect(text).toContain('SEARCH RESULTS START');
       expect(text).toContain('SEARCH RESULTS END');
       expect(text).toContain('boundary:');
+    });
+
+    test('should include matching _boundary token in JSON and outer markers', async () => {
+      ensureAuthenticated.mockResolvedValue(mockAccessToken);
+      resolveFolderPath.mockResolvedValue(WELL_KNOWN_FOLDERS['inbox']);
+      callGraphAPIPaginated.mockResolvedValue({ value: mockEmails });
+
+      const result = await handleSearchEmails({ query: 'test' });
+      const text = result.content[0].text;
+
+      // Extract the boundary token from the outer text markers
+      const markerMatch = text.match(/\[boundary:([a-f0-9]{32})\]/);
+      expect(markerMatch).not.toBeNull();
+      const markerToken = markerMatch[1];
+
+      // Extract the _boundary field from the JSON payload
+      const payload = extractJsonFromBoundary(text);
+      expect(payload._boundary).toBe(markerToken);
     });
   });
 

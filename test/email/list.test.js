@@ -9,6 +9,7 @@ jest.mock('../../email/folder-utils');
 
 /**
  * Extract the JSON content from between boundary markers in the response text.
+ * Returns the parsed payload object with _boundary and emails fields.
  */
 function extractJsonFromBoundary(text) {
   const match = text.match(/---\n([\s\S]*?)\n---/);
@@ -78,9 +79,9 @@ describe('handleListEmails', () => {
       );
       expect(result.content[0].text).toContain('Found 2 emails in inbox');
       // Verify structured JSON output contains email data
-      const emails = extractJsonFromBoundary(result.content[0].text);
-      expect(emails[0].subject).toBe('Test Email 1');
-      expect(emails[0].isRead).toBe(false);
+      const payload = extractJsonFromBoundary(result.content[0].text);
+      expect(payload.emails[0].subject).toBe('Test Email 1');
+      expect(payload.emails[0].isRead).toBe(false);
     });
 
     test('should list emails from specified folder', async () => {
@@ -129,7 +130,8 @@ describe('handleListEmails', () => {
       const text = result.content[0].text;
 
       // Verify structured JSON is parseable between boundary markers
-      const emails = extractJsonFromBoundary(text);
+      const payload = extractJsonFromBoundary(text);
+      const emails = payload.emails;
       
       expect(emails).toHaveLength(2);
       expect(emails[0].id).toBe('email-1');
@@ -155,10 +157,10 @@ describe('handleListEmails', () => {
       callGraphAPIPaginated.mockResolvedValue({ value: [emailWithoutSender] });
 
       const result = await handleListEmails({});
-      const emails = extractJsonFromBoundary(result.content[0].text);
+      const payload = extractJsonFromBoundary(result.content[0].text);
 
-      expect(emails[0].from.name).toBe('Unknown');
-      expect(emails[0].from.address).toBe('unknown');
+      expect(payload.emails[0].from.name).toBe('Unknown');
+      expect(payload.emails[0].from.address).toBe('unknown');
     });
   });
 
@@ -213,6 +215,26 @@ describe('handleListEmails', () => {
       const result = await handleListEmails({ folder: 'InvalidFolder' });
 
       expect(result.content[0].text).toBe('Error listing emails: Folder resolution failed');
+    });
+  });
+
+  describe('boundary token in JSON', () => {
+    test('should include matching _boundary token in JSON and outer markers', async () => {
+      ensureAuthenticated.mockResolvedValue(mockAccessToken);
+      resolveFolderPath.mockResolvedValue(WELL_KNOWN_FOLDERS['inbox']);
+      callGraphAPIPaginated.mockResolvedValue({ value: mockEmails });
+
+      const result = await handleListEmails({});
+      const text = result.content[0].text;
+
+      // Extract the boundary token from the outer text markers
+      const markerMatch = text.match(/\[boundary:([a-f0-9]{32})\]/);
+      expect(markerMatch).not.toBeNull();
+      const markerToken = markerMatch[1];
+
+      // Extract the _boundary field from the JSON payload
+      const payload = extractJsonFromBoundary(text);
+      expect(payload._boundary).toBe(markerToken);
     });
   });
 
