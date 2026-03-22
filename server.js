@@ -8,6 +8,7 @@
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const config = require('./config');
+const { sanitizeToolArguments } = require('./utils/metadata-sanitizer');
 
 /**
  * Create and start an MCP server.
@@ -113,7 +114,10 @@ function createServer(serverName, tools) {
       // Tool call handler
       if (method === "tools/call") {
         try {
-          const { name, arguments: args = {} } = params || {};
+          const { name, arguments: rawArgs = {} } = params || {};
+
+          // Strip any boundary markers the LLM accidentally left on values
+          const args = sanitizeToolArguments(rawArgs);
 
           console.error(`TOOL CALL: ${name}`);
 

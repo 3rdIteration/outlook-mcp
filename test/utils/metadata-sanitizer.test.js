@@ -9,6 +9,8 @@ const {
   wrapWithBoundary,
   wrapField,
   generateBoundaryToken,
+  stripBoundaryMarkers,
+  sanitizeToolArguments,
   MAX_METADATA_LENGTH,
   CONTROL_CHARS_REGEX
 } = require('../../utils/metadata-sanitizer');
@@ -379,6 +381,125 @@ describe('Metadata Sanitizer Security Tests', () => {
       expect(wrapped).toContain(`<<${realToken}>>`);
       // The fake token is just part of the value, not a real marker
       expect(wrapped).not.toBe(`<<${realToken}>>malicious<</${realToken}>>`);
+    });
+  });
+
+  describe('stripBoundaryMarkers', () => {
+    test('strips field-level markers from a value', () => {
+      const token = generateBoundaryToken();
+      const wrapped = wrapField('AAMkAGNiY2Qz', token);
+      expect(stripBoundaryMarkers(wrapped)).toBe('AAMkAGNiY2Qz');
+    });
+
+    test('strips outer boundary markers from a value', () => {
+      const token = generateBoundaryToken();
+      const wrapped = wrapWithBoundary('some content', 'EMAIL LIST', token);
+      expect(stripBoundaryMarkers(wrapped)).toBe('some content');
+    });
+
+    test('strips both outer and field-level markers when nested', () => {
+      const token = generateBoundaryToken();
+      const fieldWrapped = wrapField('AAMkAGNiY2Qz', token);
+      const outerWrapped = wrapWithBoundary(fieldWrapped, 'EMAIL', token);
+      expect(stripBoundaryMarkers(outerWrapped)).toBe('AAMkAGNiY2Qz');
+    });
+
+    test('returns original string when no markers present', () => {
+      expect(stripBoundaryMarkers('just a plain string')).toBe('just a plain string');
+      expect(stripBoundaryMarkers('AAMkAGNiY2Qz')).toBe('AAMkAGNiY2Qz');
+    });
+
+    test('returns non-string values unchanged', () => {
+      expect(stripBoundaryMarkers(null)).toBe(null);
+      expect(stripBoundaryMarkers(undefined)).toBe(undefined);
+      expect(stripBoundaryMarkers(42)).toBe(42);
+      expect(stripBoundaryMarkers(true)).toBe(true);
+    });
+
+    test('returns empty string unchanged', () => {
+      expect(stripBoundaryMarkers('')).toBe('');
+    });
+
+    test('handles field markers with various hex tokens', () => {
+      const result = stripBoundaryMarkers('<<a1b2c3d4e5f6>>MyValue<</a1b2c3d4e5f6>>');
+      expect(result).toBe('MyValue');
+    });
+
+    test('does not strip partial or malformed field markers', () => {
+      // Missing closing marker
+      expect(stripBoundaryMarkers('<<a1b2c3d4e5f6>>MyValue')).toBe('<<a1b2c3d4e5f6>>MyValue');
+      // Wrong token length
+      expect(stripBoundaryMarkers('<<abc>>MyValue<</abc>>')).toBe('<<abc>>MyValue<</abc>>');
+    });
+
+    test('does not strip field markers when opening/closing tokens differ', () => {
+      expect(stripBoundaryMarkers('<<aaaaaaaaaaaa>>MyValue<</bbbbbbbbbbbb>>')).toBe('<<aaaaaaaaaaaa>>MyValue<</bbbbbbbbbbbb>>');
+    });
+  });
+
+  describe('sanitizeToolArguments', () => {
+    test('strips field markers from string values in a flat object', () => {
+      const token = generateBoundaryToken();
+      const args = {
+        id: wrapField('AAMkAGNiY2Qz', token),
+        count: 10,
+        includeBody: true
+      };
+      const result = sanitizeToolArguments(args);
+      expect(result.id).toBe('AAMkAGNiY2Qz');
+      expect(result.count).toBe(10);
+      expect(result.includeBody).toBe(true);
+    });
+
+    test('handles nested objects', () => {
+      const token = generateBoundaryToken();
+      const args = {
+        email: {
+          id: wrapField('AAMkAGNiY2Qz', token),
+          subject: wrapField('Hello', token)
+        }
+      };
+      const result = sanitizeToolArguments(args);
+      expect(result.email.id).toBe('AAMkAGNiY2Qz');
+      expect(result.email.subject).toBe('Hello');
+    });
+
+    test('handles arrays of strings', () => {
+      const token = generateBoundaryToken();
+      const args = {
+        ids: [wrapField('id1', token), wrapField('id2', token)]
+      };
+      const result = sanitizeToolArguments(args);
+      expect(result.ids).toEqual(['id1', 'id2']);
+    });
+
+    test('passes through null and non-object values', () => {
+      expect(sanitizeToolArguments(null)).toBe(null);
+      expect(sanitizeToolArguments(undefined)).toBe(undefined);
+      expect(sanitizeToolArguments(42)).toBe(42);
+    });
+
+    test('handles empty object', () => {
+      expect(sanitizeToolArguments({})).toEqual({});
+    });
+
+    test('preserves values without markers', () => {
+      const args = {
+        folder: 'inbox',
+        count: 5,
+        unreadOnly: false,
+        id: 'AAMkAGNiY2Qz'
+      };
+      const result = sanitizeToolArguments(args);
+      expect(result).toEqual(args);
+    });
+
+    test('does not modify the original args object', () => {
+      const token = generateBoundaryToken();
+      const original = wrapField('AAMkAGNiY2Qz', token);
+      const args = { id: original };
+      sanitizeToolArguments(args);
+      expect(args.id).toBe(original);
     });
   });
 });
