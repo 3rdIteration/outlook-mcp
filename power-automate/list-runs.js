@@ -65,9 +65,9 @@ async function handleListRuns(args) {
 
       return {
         id: wrapField(sanitizeMetadata(run.name), boundaryToken),
-        status,
-        startTime,
-        duration
+        status: wrapField(status, boundaryToken),
+        startTime: wrapField(startTime, boundaryToken),
+        duration: wrapField(duration, boundaryToken)
       };
     });
 

@@ -58,9 +58,9 @@ async function handleListFlows(args) {
       return {
         id: wrapField(flow.name, boundaryToken),
         displayName: wrapField(sanitizeMetadata(props.displayName || flow.name), boundaryToken),
-        state,
-        trigger: triggerType,
-        created
+        state: wrapField(state, boundaryToken),
+        trigger: wrapField(triggerType, boundaryToken),
+        created: wrapField(created, boundaryToken)
       };
     });
 

@@ -53,8 +53,8 @@ async function handleListFiles(args) {
       id: wrapField(item.id, boundaryToken),
       name: wrapField(sanitizeMetadata(item.name), boundaryToken),
       type: item.folder ? 'folder' : 'file',
-      size: item.size ? formatSize(item.size) : '',
-      lastModified: new Date(item.lastModifiedDateTime).toLocaleString()
+      size: item.size ? wrapField(formatSize(item.size), boundaryToken) : '',
+      lastModified: wrapField(new Date(item.lastModifiedDateTime).toLocaleString(), boundaryToken)
     }));
     
     const payload = {

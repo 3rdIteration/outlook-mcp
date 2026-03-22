@@ -54,9 +54,9 @@ async function handleSearchFiles(args) {
       id: wrapField(item.id, boundaryToken),
       name: wrapField(sanitizeMetadata(item.name), boundaryToken),
       type: item.folder ? 'folder' : 'file',
-      size: item.size ? formatSize(item.size) : '',
-      path: item.parentReference?.path?.replace('/drive/root:', '') || '/',
-      lastModified: new Date(item.lastModifiedDateTime).toLocaleString()
+      size: item.size ? wrapField(formatSize(item.size), boundaryToken) : '',
+      path: wrapField(item.parentReference?.path?.replace('/drive/root:', '') || '/', boundaryToken),
+      lastModified: wrapField(new Date(item.lastModifiedDateTime).toLocaleString(), boundaryToken)
     }));
     
     const payload = {

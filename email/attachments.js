@@ -56,7 +56,7 @@ async function handleListAttachments(args) {
         id: wrapField(att.id, boundaryToken),
         name: wrapField(sanitizeMetadata(att.name), boundaryToken),
         contentType: wrapField(sanitizeMetadata(att.contentType), boundaryToken),
-        size: formatSize(att.size),
+        size: wrapField(formatSize(att.size), boundaryToken),
         isInline: att.isInline || false
       }));
 
@@ -151,7 +151,7 @@ async function handleDownloadAttachment(args) {
       const boundaryToken = generateBoundaryToken();
       const name = wrapField(sanitizeMetadata(attachment.name || 'unknown'), boundaryToken);
       const contentType = wrapField(sanitizeMetadata(attachment.contentType || 'application/octet-stream'), boundaryToken);
-      const size = formatSize(attachment.size);
+      const size = wrapField(formatSize(attachment.size), boundaryToken);
 
       // Handle different attachment types
       // #microsoft.graph.fileAttachment has contentBytes (base64)
@@ -423,14 +423,14 @@ async function handleDownloadAttachments(args) {
         payload.savedTo = resolvedDir;
         payload.attachments = savedFiles.map(f => ({
           name: wrapField(f.name, boundaryToken),
-          size: formatSize(f.size),
-          path: f.path
+          size: wrapField(formatSize(f.size), boundaryToken),
+          path: wrapField(f.path, boundaryToken)
         }));
       } else {
         payload.attachments = results.map(att => ({
           name: wrapField(att.name, boundaryToken),
           contentType: wrapField(att.contentType, boundaryToken),
-          size: formatSize(att.size),
+          size: wrapField(formatSize(att.size), boundaryToken),
           contentBytesLength: att.contentBytes.length
         }));
       }
@@ -460,7 +460,7 @@ async function handleDownloadAttachments(args) {
             _boundary: attBoundary,
             name: wrapField(att.name, attBoundary),
             contentType: wrapField(att.contentType, attBoundary),
-            size: formatSize(att.size),
+            size: wrapField(formatSize(att.size), attBoundary),
             content: att.contentBytes
           };
           content.push({

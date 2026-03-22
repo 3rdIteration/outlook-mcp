@@ -43,7 +43,7 @@ async function handleListEnvironments(args) {
         id: wrapField(env.name, boundaryToken),
         displayName: wrapField(sanitizeMetadata(props.displayName || env.name), boundaryToken),
         isDefault: props.isDefault || false,
-        region: props.azureRegionHint || 'Unknown region'
+        region: wrapField(props.azureRegionHint || 'Unknown region', boundaryToken)
       };
     });
 
