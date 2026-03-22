@@ -293,8 +293,8 @@ function formatSearchResults(response) {
         address: sanitizeMetadata(sender.address)
       },
       to: (email.toRecipients || []).map(r => ({
-        name: sanitizeMetadata(r.emailAddress?.name || ''),
-        address: sanitizeMetadata(r.emailAddress?.address || '')
+        name: sanitizeMetadata(r.emailAddress?.name || 'Unknown'),
+        address: sanitizeMetadata(r.emailAddress?.address || 'unknown')
       })),
       receivedDateTime: email.receivedDateTime,
       isRead: email.isRead,
