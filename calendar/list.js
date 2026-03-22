@@ -89,11 +89,11 @@ async function handleListEvents(args) {
 
       return {
         id: wrapField(event.id, boundaryToken),
-        subject: wrapField(sanitizeMetadata(event.subject), boundaryToken),
+        subject: wrapField(sanitizeMetadata(event.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
         location: wrapField(sanitizeMetadata(event.location?.displayName || 'No location'), boundaryToken),
         start: wrapField(formatDateTime(event.start), boundaryToken),
         end: wrapField(formatDateTime(event.end), boundaryToken),
-        bodyPreview: wrapField(sanitizeMetadata(event.bodyPreview), boundaryToken)
+        bodyPreview: wrapField(sanitizeMetadata(event.bodyPreview, config.MAX_BODY_PREVIEW_LENGTH), boundaryToken)
       };
     });
     

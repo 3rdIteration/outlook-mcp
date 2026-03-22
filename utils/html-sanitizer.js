@@ -346,17 +346,24 @@ function wrapEmailContent(content, metadata = {}) {
  * @param {boolean} options.preserveLinks - Keep links as markdown (default: true)
  * @param {boolean} options.addBoundary - Add content boundary markers (default: true)
  * @param {object} options.metadata - Email metadata for boundary header
+ * @param {number} options.maxLength - Maximum body text length (0 = no limit)
  * @returns {string} - Safe text content
  */
 function processHtmlEmail(html, options = {}) {
   const {
     preserveLinks = true,
     addBoundary = true,
-    metadata = {}
+    metadata = {},
+    maxLength = 0
   } = options;
 
   // Sanitize the HTML to visible text only
   let content = sanitizeHtmlToText(html);
+
+  // Truncate body text to prevent context window overflow
+  if (maxLength > 0 && content.length > maxLength) {
+    content = content.substring(0, maxLength) + '\n…[truncated]';
+  }
 
   // Optionally wrap with boundary markers
   if (addBoundary) {

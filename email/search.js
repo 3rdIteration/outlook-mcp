@@ -290,20 +290,20 @@ function formatSearchResults(response) {
     const sender = email.from?.emailAddress || { name: 'Unknown', address: 'unknown' };
     return {
       id: wrapField(email.id, boundaryToken),
-      subject: wrapField(sanitizeMetadata(email.subject), boundaryToken),
+      subject: wrapField(sanitizeMetadata(email.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
       from: {
-        name: wrapField(sanitizeMetadata(sender.name), boundaryToken),
-        address: wrapField(sanitizeMetadata(sender.address), boundaryToken)
+        name: wrapField(sanitizeMetadata(sender.name, config.MAX_SENDER_LENGTH), boundaryToken),
+        address: wrapField(sanitizeMetadata(sender.address, config.MAX_SENDER_LENGTH), boundaryToken)
       },
       to: (email.toRecipients || []).map(r => ({
-        name: wrapField(sanitizeMetadata(r.emailAddress?.name || 'Unknown'), boundaryToken),
-        address: wrapField(sanitizeMetadata(r.emailAddress?.address || 'unknown'), boundaryToken)
+        name: wrapField(sanitizeMetadata(r.emailAddress?.name || 'Unknown', config.MAX_SENDER_LENGTH), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress?.address || 'unknown', config.MAX_SENDER_LENGTH), boundaryToken)
       })),
       receivedDateTime: wrapField(email.receivedDateTime, boundaryToken),
       isRead: email.isRead,
       hasAttachments: email.hasAttachments,
       importance: wrapField(email.importance, boundaryToken),
-      bodyPreview: wrapField(sanitizeMetadata(email.bodyPreview), boundaryToken)
+      bodyPreview: wrapField(sanitizeMetadata(email.bodyPreview, config.MAX_BODY_PREVIEW_LENGTH), boundaryToken)
     };
   });
   

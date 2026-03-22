@@ -47,6 +47,14 @@ module.exports = {
   // 0 (default) = return all tools in one response (no pagination).
   TOOLS_PAGE_SIZE: parseInt(process.env.MCP_TOOLS_PAGE_SIZE, 10) || 0,
 
+  // Content length limits — prevent malicious content from overflowing the LLM
+  // context window.  Each limit has a sensible default that can be overridden
+  // via the corresponding environment variable.
+  MAX_SUBJECT_LENGTH: parseInt(process.env.MCP_MAX_SUBJECT_LENGTH, 10) || 500,
+  MAX_SENDER_LENGTH: parseInt(process.env.MCP_MAX_SENDER_LENGTH, 10) || 200,
+  MAX_BODY_PREVIEW_LENGTH: parseInt(process.env.MCP_MAX_BODY_PREVIEW_LENGTH, 10) || 500,
+  MAX_BODY_LENGTH: parseInt(process.env.MCP_MAX_BODY_LENGTH, 10) || 50000,
+
   // Timezone
   DEFAULT_TIMEZONE: "Central European Standard Time",
 

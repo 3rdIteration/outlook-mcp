@@ -58,19 +58,19 @@ async function handleReadEmail(args) {
       const boundaryToken = generateBoundaryToken();
 
       // Format sender, recipients, etc. (sanitize metadata to prevent prompt injection)
-      const senderName = email.from ? sanitizeMetadata(email.from.emailAddress.name) : 'Unknown';
-      const senderAddress = email.from ? sanitizeMetadata(email.from.emailAddress.address) : 'unknown';
+      const senderName = email.from ? sanitizeMetadata(email.from.emailAddress.name, config.MAX_SENDER_LENGTH) : 'Unknown';
+      const senderAddress = email.from ? sanitizeMetadata(email.from.emailAddress.address, config.MAX_SENDER_LENGTH) : 'unknown';
       const toRecipients = email.toRecipients ? email.toRecipients.map(r => ({
-        name: wrapField(sanitizeMetadata(r.emailAddress.name), boundaryToken),
-        address: wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+        name: wrapField(sanitizeMetadata(r.emailAddress.name, config.MAX_SENDER_LENGTH), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress.address, config.MAX_SENDER_LENGTH), boundaryToken)
       })) : [];
       const ccRecipients = email.ccRecipients && email.ccRecipients.length > 0 ? email.ccRecipients.map(r => ({
-        name: wrapField(sanitizeMetadata(r.emailAddress.name), boundaryToken),
-        address: wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+        name: wrapField(sanitizeMetadata(r.emailAddress.name, config.MAX_SENDER_LENGTH), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress.address, config.MAX_SENDER_LENGTH), boundaryToken)
       })) : [];
       const bccRecipients = email.bccRecipients && email.bccRecipients.length > 0 ? email.bccRecipients.map(r => ({
-        name: wrapField(sanitizeMetadata(r.emailAddress.name), boundaryToken),
-        address: wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+        name: wrapField(sanitizeMetadata(r.emailAddress.name, config.MAX_SENDER_LENGTH), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress.address, config.MAX_SENDER_LENGTH), boundaryToken)
       })) : [];
       const date = new Date(email.receivedDateTime).toLocaleString();
 
@@ -84,6 +84,7 @@ async function handleReadEmail(args) {
           // This prevents prompt injection via hidden HTML content
           body = processHtmlEmail(email.body.content, {
             addBoundary: true,
+            maxLength: config.MAX_BODY_LENGTH,
             metadata: {
               from: email.from?.emailAddress?.address || 'unknown',
               subject: email.subject,
@@ -95,6 +96,7 @@ async function handleReadEmail(args) {
           // Plain text - still wrap with boundary for safety
           body = processHtmlEmail(email.body.content, {
             addBoundary: true,
+            maxLength: config.MAX_BODY_LENGTH,
             metadata: {
               from: email.from?.emailAddress?.address || 'unknown',
               subject: email.subject,
@@ -103,14 +105,14 @@ async function handleReadEmail(args) {
           });
         }
       } else {
-        body = email.bodyPreview || 'No content';
+        body = sanitizeMetadata(email.bodyPreview, config.MAX_BODY_PREVIEW_LENGTH) || 'No content';
       }
 
       // Build structured JSON response with field-level wrapping
       const emailData = {
         _boundary: boundaryToken,
         id: wrapField(emailId, boundaryToken),
-        subject: wrapField(sanitizeMetadata(email.subject), boundaryToken),
+        subject: wrapField(sanitizeMetadata(email.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
         from: {
           name: wrapField(senderName, boundaryToken),
           address: wrapField(senderAddress, boundaryToken)
