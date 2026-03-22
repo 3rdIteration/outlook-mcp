@@ -5,7 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
-const { sanitizeMetadata, wrapWithBoundary, generateBoundaryToken } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * Search emails handler
@@ -285,25 +285,25 @@ function formatSearchResults(response) {
   // Generate a shared boundary token for JSON payload and outer markers
   const boundaryToken = generateBoundaryToken();
   
-  // Build structured results with sanitized fields
+  // Build structured results with sanitized and field-wrapped values
   const emails = response.value.map((email) => {
     const sender = email.from?.emailAddress || { name: 'Unknown', address: 'unknown' };
     return {
-      id: email.id,
-      subject: sanitizeMetadata(email.subject),
+      id: wrapField(email.id, boundaryToken),
+      subject: wrapField(sanitizeMetadata(email.subject), boundaryToken),
       from: {
-        name: sanitizeMetadata(sender.name),
-        address: sanitizeMetadata(sender.address)
+        name: wrapField(sanitizeMetadata(sender.name), boundaryToken),
+        address: wrapField(sanitizeMetadata(sender.address), boundaryToken)
       },
       to: (email.toRecipients || []).map(r => ({
-        name: sanitizeMetadata(r.emailAddress?.name || 'Unknown'),
-        address: sanitizeMetadata(r.emailAddress?.address || 'unknown')
+        name: wrapField(sanitizeMetadata(r.emailAddress?.name || 'Unknown'), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress?.address || 'unknown'), boundaryToken)
       })),
-      receivedDateTime: email.receivedDateTime,
+      receivedDateTime: wrapField(email.receivedDateTime, boundaryToken),
       isRead: email.isRead,
       hasAttachments: email.hasAttachments,
-      importance: email.importance,
-      bodyPreview: sanitizeMetadata(email.bodyPreview)
+      importance: wrapField(email.importance, boundaryToken),
+      bodyPreview: wrapField(sanitizeMetadata(email.bodyPreview), boundaryToken)
     };
   });
   

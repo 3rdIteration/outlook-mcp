@@ -3,7 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List rules handler
@@ -85,116 +85,87 @@ function formatRulesList(rules, includeDetails) {
     return (a.sequence || 9999) - (b.sequence || 9999);
   });
   
-  // Format rules based on detail level
-  if (includeDetails) {
-    // Detailed format
-    const detailedRules = sortedRules.map((rule, index) => {
-      // Format rule header with sequence
-      let ruleText = `${index + 1}. ${sanitizeMetadata(rule.displayName)}${rule.isEnabled ? '' : ' (Disabled)'} - Sequence: ${rule.sequence || 'N/A'}`;
-      
-      // Format conditions
-      const conditions = formatRuleConditions(rule);
-      if (conditions) {
-        ruleText += `\n   Conditions: ${conditions}`;
+  // Generate a shared boundary token for JSON payload and outer markers
+  const boundaryToken = generateBoundaryToken();
+  
+  // Build structured JSON with field-level wrapping
+  const ruleItems = sortedRules.map((rule) => {
+    const item = {
+      displayName: wrapField(sanitizeMetadata(rule.displayName), boundaryToken),
+      isEnabled: rule.isEnabled,
+      sequence: rule.sequence || null
+    };
+    
+    if (includeDetails) {
+      // Add conditions
+      const conditions = {};
+      if (rule.conditions?.fromAddresses?.length > 0) {
+        conditions.fromAddresses = rule.conditions.fromAddresses.map(addr =>
+          wrapField(sanitizeMetadata(addr.emailAddress.address), boundaryToken)
+        );
+      }
+      if (rule.conditions?.subjectContains?.length > 0) {
+        conditions.subjectContains = rule.conditions.subjectContains.map(s =>
+          wrapField(sanitizeMetadata(s), boundaryToken)
+        );
+      }
+      if (rule.conditions?.bodyContains?.length > 0) {
+        conditions.bodyContains = rule.conditions.bodyContains.map(s =>
+          wrapField(sanitizeMetadata(s), boundaryToken)
+        );
+      }
+      if (rule.conditions?.hasAttachment === true) {
+        conditions.hasAttachment = true;
+      }
+      if (rule.conditions?.importance) {
+        conditions.importance = rule.conditions.importance;
+      }
+      if (Object.keys(conditions).length > 0) {
+        item.conditions = conditions;
       }
       
-      // Format actions
-      const actions = formatRuleActions(rule);
-      if (actions) {
-        ruleText += `\n   Actions: ${actions}`;
+      // Add actions
+      const actions = {};
+      if (rule.actions?.moveToFolder) {
+        actions.moveToFolder = rule.actions.moveToFolder;
       }
-      
-      return ruleText;
-    });
+      if (rule.actions?.copyToFolder) {
+        actions.copyToFolder = rule.actions.copyToFolder;
+      }
+      if (rule.actions?.markAsRead === true) {
+        actions.markAsRead = true;
+      }
+      if (rule.actions?.markImportance) {
+        actions.markImportance = rule.actions.markImportance;
+      }
+      if (rule.actions?.forwardTo?.length > 0) {
+        actions.forwardTo = rule.actions.forwardTo.map(r =>
+          wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+        );
+      }
+      if (rule.actions?.delete === true) {
+        actions.delete = true;
+      }
+      if (Object.keys(actions).length > 0) {
+        item.actions = actions;
+      }
+    }
     
-    return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${wrapWithBoundary(detailedRules.join('\n\n'), 'INBOX RULES')}\n\nRules are processed in order of their sequence number. You can change rule order using the 'edit-rule-sequence' tool.`;
-  } else {
-    // Simple format
-    const simpleRules = sortedRules.map((rule, index) => {
-      return `${index + 1}. ${sanitizeMetadata(rule.displayName)}${rule.isEnabled ? '' : ' (Disabled)'} - Sequence: ${rule.sequence || 'N/A'}`;
-    });
-    
-    return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${wrapWithBoundary(simpleRules.join('\n'), 'INBOX RULES')}\n\nTip: Use 'list-rules with includeDetails=true' to see more information about each rule.`;
-  }
-}
-
-/**
- * Format rule conditions for display
- * @param {object} rule - Rule object
- * @returns {string} - Formatted conditions
- */
-function formatRuleConditions(rule) {
-  const conditions = [];
+    return item;
+  });
   
-  // From addresses
-  if (rule.conditions?.fromAddresses?.length > 0) {
-    const senders = rule.conditions.fromAddresses.map(addr => sanitizeMetadata(addr.emailAddress.address)).join(', ');
-    conditions.push(`From: ${senders}`);
-  }
+  const payload = {
+    _boundary: boundaryToken,
+    rules: ruleItems
+  };
   
-  // Subject contains
-  if (rule.conditions?.subjectContains?.length > 0) {
-    conditions.push(`Subject contains: "${sanitizeMetadata(rule.conditions.subjectContains.join(', '))}"`);
-  }
+  const rulesJson = JSON.stringify(payload, null, 2);
   
-  // Contains body text
-  if (rule.conditions?.bodyContains?.length > 0) {
-    conditions.push(`Body contains: "${sanitizeMetadata(rule.conditions.bodyContains.join(', '))}"`);
-  }
+  const tip = includeDetails
+    ? "\n\nRules are processed in order of their sequence number. You can change rule order using the 'edit-rule-sequence' tool."
+    : "\n\nTip: Use 'list-rules with includeDetails=true' to see more information about each rule.";
   
-  // Has attachment
-  if (rule.conditions?.hasAttachment === true) {
-    conditions.push('Has attachment');
-  }
-  
-  // Importance
-  if (rule.conditions?.importance) {
-    conditions.push(`Importance: ${rule.conditions.importance}`);
-  }
-  
-  return conditions.join('; ');
-}
-
-/**
- * Format rule actions for display
- * @param {object} rule - Rule object
- * @returns {string} - Formatted actions
- */
-function formatRuleActions(rule) {
-  const actions = [];
-  
-  // Move to folder
-  if (rule.actions?.moveToFolder) {
-    actions.push(`Move to folder: ${rule.actions.moveToFolder}`);
-  }
-  
-  // Copy to folder
-  if (rule.actions?.copyToFolder) {
-    actions.push(`Copy to folder: ${rule.actions.copyToFolder}`);
-  }
-  
-  // Mark as read
-  if (rule.actions?.markAsRead === true) {
-    actions.push('Mark as read');
-  }
-  
-  // Mark importance
-  if (rule.actions?.markImportance) {
-    actions.push(`Mark importance: ${rule.actions.markImportance}`);
-  }
-  
-  // Forward
-  if (rule.actions?.forwardTo?.length > 0) {
-    const recipients = rule.actions.forwardTo.map(r => sanitizeMetadata(r.emailAddress.address)).join(', ');
-    actions.push(`Forward to: ${recipients}`);
-  }
-  
-  // Delete
-  if (rule.actions?.delete === true) {
-    actions.push('Delete');
-  }
-  
-  return actions.join('; ');
+  return `Found ${rules.length} inbox rules (sorted by execution order):\n\n${wrapWithBoundary(rulesJson, 'INBOX RULES', boundaryToken)}${tip}`;
 }
 
 module.exports = {

@@ -3,7 +3,7 @@
  */
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List folders handler
@@ -21,20 +21,35 @@ async function handleListFolders(args) {
     // Get all mail folders
     const folders = await getAllFoldersHierarchy(accessToken, includeItemCounts);
     
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+    
     // If including children, format as hierarchy
     if (includeChildren) {
+      const hierarchyData = buildFolderHierarchy(folders, includeItemCounts, boundaryToken);
+      const payload = {
+        _boundary: boundaryToken,
+        folders: hierarchyData
+      };
+      const folderJson = JSON.stringify(payload, null, 2);
       return {
         content: [{ 
           type: "text", 
-          text: wrapWithBoundary(formatFolderHierarchy(folders, includeItemCounts), 'FOLDER LIST')
+          text: `Folder Hierarchy:\n\n${wrapWithBoundary(folderJson, 'FOLDER LIST', boundaryToken)}`
         }]
       };
     } else {
       // Otherwise, format as flat list
+      const flatData = buildFolderFlatList(folders, includeItemCounts, boundaryToken);
+      const payload = {
+        _boundary: boundaryToken,
+        folders: flatData
+      };
+      const folderJson = JSON.stringify(payload, null, 2);
       return {
         content: [{ 
           type: "text", 
-          text: wrapWithBoundary(formatFolderList(folders, includeItemCounts), 'FOLDER LIST')
+          text: `Found ${folders.length} folders:\n\n${wrapWithBoundary(folderJson, 'FOLDER LIST', boundaryToken)}`
         }]
       };
     }
@@ -130,21 +145,21 @@ async function getAllFoldersHierarchy(accessToken, includeItemCounts) {
 }
 
 /**
- * Format folders as a flat list
+ * Build flat list of folder objects with field wrapping
  * @param {Array} folders - Array of folder objects
  * @param {boolean} includeItemCounts - Whether to include item counts
- * @returns {string} - Formatted list
+ * @param {string} boundaryToken - Boundary token for field wrapping
+ * @returns {Array} - Array of folder data objects
  */
-function formatFolderList(folders, includeItemCounts) {
+function buildFolderFlatList(folders, includeItemCounts, boundaryToken) {
   if (!folders || folders.length === 0) {
-    return "No folders found.";
+    return [];
   }
   
   // Sort folders alphabetically, with well-known folders first
   const wellKnownFolderNames = ['Inbox', 'Drafts', 'Sent Items', 'Deleted Items', 'Junk Email', 'Archive'];
   
   const sortedFolders = [...folders].sort((a, b) => {
-    // Well-known folders come first
     const aIsWellKnown = wellKnownFolderNames.includes(a.displayName);
     const bIsWellKnown = wellKnownFolderNames.includes(b.displayName);
     
@@ -152,64 +167,56 @@ function formatFolderList(folders, includeItemCounts) {
     if (!aIsWellKnown && bIsWellKnown) return 1;
     
     if (aIsWellKnown && bIsWellKnown) {
-      // Sort well-known folders by their index in the array
       return wellKnownFolderNames.indexOf(a.displayName) - wellKnownFolderNames.indexOf(b.displayName);
     }
     
-    // Sort other folders alphabetically
     return a.displayName.localeCompare(b.displayName);
   });
   
-  // Format each folder
-  const folderLines = sortedFolders.map(folder => {
-    let folderInfo = sanitizeMetadata(folder.displayName);
+  return sortedFolders.map(folder => {
+    const item = {
+      id: wrapField(folder.id, boundaryToken),
+      displayName: wrapField(sanitizeMetadata(folder.displayName), boundaryToken)
+    };
     
-    // Add parent folder info if available
     if (folder.parentFolder) {
-      folderInfo += ` (in ${sanitizeMetadata(folder.parentFolder)})`;
+      item.parentFolder = wrapField(sanitizeMetadata(folder.parentFolder), boundaryToken);
     }
     
-    // Add item counts if requested
     if (includeItemCounts) {
-      const unreadCount = folder.unreadItemCount || 0;
-      const totalCount = folder.totalItemCount || 0;
-      folderInfo += ` - ${totalCount} items`;
-      
-      if (unreadCount > 0) {
-        folderInfo += ` (${unreadCount} unread)`;
-      }
+      item.totalItemCount = folder.totalItemCount || 0;
+      item.unreadItemCount = folder.unreadItemCount || 0;
     }
     
-    return folderInfo;
+    return item;
   });
-  
-  return `Found ${folders.length} folders:\n\n${folderLines.join('\n')}`;
 }
 
 /**
- * Format folders as a hierarchical tree
+ * Build folder hierarchy with field wrapping
  * @param {Array} folders - Array of folder objects
  * @param {boolean} includeItemCounts - Whether to include item counts
- * @returns {string} - Formatted hierarchy
+ * @param {string} boundaryToken - Boundary token for field wrapping
+ * @returns {Array} - Array of folder data objects with children
  */
-function formatFolderHierarchy(folders, includeItemCounts) {
+function buildFolderHierarchy(folders, includeItemCounts, boundaryToken) {
   if (!folders || folders.length === 0) {
-    return "No folders found.";
+    return [];
   }
   
   // Build folder hierarchy
   const folderMap = new Map();
-  const rootFolders = [];
+  const rootFolderIds = [];
   
   // First pass: create map of all folders
   folders.forEach(folder => {
     folderMap.set(folder.id, {
       ...folder,
-      children: []
+      childIds: []
     });
     
     if (folder.isTopLevel) {
-      rootFolders.push(folder.id);
+      rootFolderIds.push(folder.id);
     }
   });
   
@@ -218,48 +225,38 @@ function formatFolderHierarchy(folders, includeItemCounts) {
     if (!folder.isTopLevel && folder.parentFolderId) {
       const parent = folderMap.get(folder.parentFolderId);
       if (parent) {
-        parent.children.push(folder.id);
+        parent.childIds.push(folder.id);
       } else {
-        // Fallback for orphaned folders
-        rootFolders.push(folder.id);
+        rootFolderIds.push(folder.id);
       }
     }
   });
   
-  // Format hierarchy recursively
-  function formatSubtree(folderId, level = 0) {
+  // Build tree recursively
+  function buildSubtree(folderId) {
     const folder = folderMap.get(folderId);
-    if (!folder) return '';
+    if (!folder) return null;
     
-    const indent = '  '.repeat(level);
-    let line = `${indent}${sanitizeMetadata(folder.displayName)}`;
+    const item = {
+      id: wrapField(folder.id, boundaryToken),
+      displayName: wrapField(sanitizeMetadata(folder.displayName), boundaryToken)
+    };
     
-    // Add item counts if requested
     if (includeItemCounts) {
-      const unreadCount = folder.unreadItemCount || 0;
-      const totalCount = folder.totalItemCount || 0;
-      line += ` - ${totalCount} items`;
-      
-      if (unreadCount > 0) {
-        line += ` (${unreadCount} unread)`;
-      }
+      item.totalItemCount = folder.totalItemCount || 0;
+      item.unreadItemCount = folder.unreadItemCount || 0;
     }
     
-    // Add children
-    const childLines = folder.children
-      .map(childId => formatSubtree(childId, level + 1))
-      .filter(line => line.length > 0)
-      .join('\n');
+    if (folder.childIds.length > 0) {
+      item.children = folder.childIds
+        .map(childId => buildSubtree(childId))
+        .filter(Boolean);
+    }
     
-    return childLines.length > 0 ? `${line}\n${childLines}` : line;
+    return item;
   }
   
-  // Format all root folders
-  const formattedHierarchy = rootFolders
-    .map(folderId => formatSubtree(folderId))
-    .join('\n');
-  
-  return `Folder Hierarchy:\n\n${formattedHierarchy}`;
+  return rootFolderIds.map(id => buildSubtree(id)).filter(Boolean);
 }
 
 module.exports = handleListFolders;

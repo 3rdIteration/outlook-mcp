@@ -8,7 +8,7 @@ const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { processHtmlEmail, sanitizeHtmlToText } = require('../utils/html-sanitizer');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * Read email handler
@@ -54,12 +54,24 @@ async function handleReadEmail(args) {
         };
       }
 
+      // Generate a shared boundary token for JSON payload and outer markers
+      const boundaryToken = generateBoundaryToken();
+
       // Format sender, recipients, etc. (sanitize metadata to prevent prompt injection)
-      const sender = email.from ? `${sanitizeMetadata(email.from.emailAddress.name)} (${sanitizeMetadata(email.from.emailAddress.address)})` : 'Unknown';
-      const senderAddress = email.from?.emailAddress?.address || 'unknown';
-      const to = email.toRecipients ? email.toRecipients.map(r => `${sanitizeMetadata(r.emailAddress.name)} (${sanitizeMetadata(r.emailAddress.address)})`).join(", ") : 'None';
-      const cc = email.ccRecipients && email.ccRecipients.length > 0 ? email.ccRecipients.map(r => `${sanitizeMetadata(r.emailAddress.name)} (${sanitizeMetadata(r.emailAddress.address)})`).join(", ") : 'None';
-      const bcc = email.bccRecipients && email.bccRecipients.length > 0 ? email.bccRecipients.map(r => `${sanitizeMetadata(r.emailAddress.name)} (${sanitizeMetadata(r.emailAddress.address)})`).join(", ") : 'None';
+      const senderName = email.from ? sanitizeMetadata(email.from.emailAddress.name) : 'Unknown';
+      const senderAddress = email.from ? sanitizeMetadata(email.from.emailAddress.address) : 'unknown';
+      const toRecipients = email.toRecipients ? email.toRecipients.map(r => ({
+        name: wrapField(sanitizeMetadata(r.emailAddress.name), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+      })) : [];
+      const ccRecipients = email.ccRecipients && email.ccRecipients.length > 0 ? email.ccRecipients.map(r => ({
+        name: wrapField(sanitizeMetadata(r.emailAddress.name), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+      })) : [];
+      const bccRecipients = email.bccRecipients && email.bccRecipients.length > 0 ? email.bccRecipients.map(r => ({
+        name: wrapField(sanitizeMetadata(r.emailAddress.name), boundaryToken),
+        address: wrapField(sanitizeMetadata(r.emailAddress.address), boundaryToken)
+      })) : [];
       const date = new Date(email.receivedDateTime).toLocaleString();
 
       // Extract and sanitize body content
@@ -73,18 +85,18 @@ async function handleReadEmail(args) {
           body = processHtmlEmail(email.body.content, {
             addBoundary: true,
             metadata: {
-              from: senderAddress,
+              from: email.from?.emailAddress?.address || 'unknown',
               subject: email.subject,
               date: date
             }
           });
-          bodyNote = '\n[HTML email - sanitized for security, hidden content removed]\n';
+          bodyNote = '[HTML email - sanitized for security, hidden content removed]';
         } else {
           // Plain text - still wrap with boundary for safety
           body = processHtmlEmail(email.body.content, {
             addBoundary: true,
             metadata: {
-              from: senderAddress,
+              from: email.from?.emailAddress?.address || 'unknown',
               subject: email.subject,
               date: date
             }
@@ -94,15 +106,29 @@ async function handleReadEmail(args) {
         body = email.bodyPreview || 'No content';
       }
 
-      // Format the email
-      const formattedEmail = `From: ${sender}
-To: ${to}
-${cc !== 'None' ? `CC: ${cc}\n` : ''}${bcc !== 'None' ? `BCC: ${bcc}\n` : ''}Subject: ${sanitizeMetadata(email.subject)}
-Date: ${date}
-Importance: ${email.importance || 'normal'}
-Has Attachments: ${email.hasAttachments ? 'Yes' : 'No'}
-${bodyNote}
-${body}`;
+      // Build structured JSON response with field-level wrapping
+      const emailData = {
+        _boundary: boundaryToken,
+        id: wrapField(emailId, boundaryToken),
+        subject: wrapField(sanitizeMetadata(email.subject), boundaryToken),
+        from: {
+          name: wrapField(senderName, boundaryToken),
+          address: wrapField(senderAddress, boundaryToken)
+        },
+        to: toRecipients,
+        cc: ccRecipients,
+        bcc: bccRecipients,
+        date: wrapField(date, boundaryToken),
+        importance: wrapField(email.importance || 'normal', boundaryToken),
+        hasAttachments: email.hasAttachments,
+        body: body
+      };
+
+      if (bodyNote) {
+        emailData.bodyNote = bodyNote;
+      }
+
+      const emailJson = JSON.stringify(emailData, null, 2);
 
       // Optionally include raw HTML for debugging (not recommended for normal use)
       let rawHtmlSection = '';
@@ -114,7 +140,7 @@ ${body}`;
         content: [
           {
             type: "text",
-            text: wrapWithBoundary(formattedEmail, 'EMAIL') + rawHtmlSection
+            text: wrapWithBoundary(emailJson, 'EMAIL', boundaryToken) + rawHtmlSection
           }
         ]
       };

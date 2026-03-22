@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List attachments for a specific email
@@ -50,16 +50,27 @@ async function handleListAttachments(args) {
         };
       }
 
-      const formatted = attachments.map((att, index) => {
-        const size = formatSize(att.size);
-        const inline = att.isInline ? ' (inline)' : '';
-        return `${index + 1}. ${sanitizeMetadata(att.name)} (${sanitizeMetadata(att.contentType)}, ${size})${inline}\n   ID: ${att.id}`;
-      }).join('\n');
+      const boundaryToken = generateBoundaryToken();
+
+      const formatted = attachments.map((att) => ({
+        id: wrapField(att.id, boundaryToken),
+        name: wrapField(sanitizeMetadata(att.name), boundaryToken),
+        contentType: wrapField(sanitizeMetadata(att.contentType), boundaryToken),
+        size: formatSize(att.size),
+        isInline: att.isInline || false
+      }));
+
+      const payload = {
+        _boundary: boundaryToken,
+        attachments: formatted
+      };
+
+      const attachmentList = JSON.stringify(payload, null, 2);
 
       return {
         content: [{
           type: "text",
-          text: `Found ${attachments.length} attachment(s):\n\n${wrapWithBoundary(formatted, 'ATTACHMENTS')}`
+          text: `Found ${attachments.length} attachment(s):\n\n${wrapWithBoundary(attachmentList, 'ATTACHMENTS', boundaryToken)}`
         }]
       };
     } catch (error) {
@@ -137,8 +148,9 @@ async function handleDownloadAttachment(args) {
         };
       }
 
-      const name = sanitizeMetadata(attachment.name || 'unknown');
-      const contentType = sanitizeMetadata(attachment.contentType || 'application/octet-stream');
+      const boundaryToken = generateBoundaryToken();
+      const name = wrapField(sanitizeMetadata(attachment.name || 'unknown'), boundaryToken);
+      const contentType = wrapField(sanitizeMetadata(attachment.contentType || 'application/octet-stream'), boundaryToken);
       const size = formatSize(attachment.size);
 
       // Handle different attachment types
@@ -148,46 +160,78 @@ async function handleDownloadAttachment(args) {
       const odataType = attachment['@odata.type'];
 
       if (odataType === '#microsoft.graph.itemAttachment') {
+        const payload = {
+          _boundary: boundaryToken,
+          name,
+          contentType,
+          size,
+          type: 'Outlook item attachment (event, message, or contact)',
+          note: 'Item attachments cannot be downloaded as files. Use the Microsoft Graph API to access the item directly.'
+        };
         return {
           content: [{
             type: "text",
-            text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\nType: Outlook item attachment (event, message, or contact)\n\nItem attachments cannot be downloaded as files. Use the Microsoft Graph API to access the item directly.`, 'ATTACHMENT')
+            text: wrapWithBoundary(JSON.stringify(payload, null, 2), 'ATTACHMENT', boundaryToken)
           }]
         };
       }
 
       if (odataType === '#microsoft.graph.referenceAttachment') {
+        const payload = {
+          _boundary: boundaryToken,
+          name,
+          contentType,
+          size,
+          type: 'Reference attachment (cloud file link)',
+          note: 'This is a link to a file stored in the cloud (e.g., OneDrive or SharePoint). Use the OneDrive tools to access it.'
+        };
         return {
           content: [{
             type: "text",
-            text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\nType: Reference attachment (cloud file link)\n\nThis is a link to a file stored in the cloud (e.g., OneDrive or SharePoint). Use the OneDrive tools to access it.`, 'ATTACHMENT')
+            text: wrapWithBoundary(JSON.stringify(payload, null, 2), 'ATTACHMENT', boundaryToken)
           }]
         };
       }
 
       // File attachment - has base64 contentBytes
       if (attachment.contentBytes) {
-        const isTextType = contentType.startsWith('text/') ||
-          contentType === 'application/json' ||
-          contentType === 'application/xml' ||
-          contentType === 'application/javascript';
+        const rawContentType = sanitizeMetadata(attachment.contentType || 'application/octet-stream');
+        const isTextType = rawContentType.startsWith('text/') ||
+          rawContentType === 'application/json' ||
+          rawContentType === 'application/xml' ||
+          rawContentType === 'application/javascript';
 
         if (isTextType) {
           // Decode base64 to text for text-based files
           const textContent = Buffer.from(attachment.contentBytes, 'base64').toString('utf-8');
+          const payload = {
+            _boundary: boundaryToken,
+            name,
+            contentType,
+            size,
+            content: textContent
+          };
           return {
             content: [{
               type: "text",
-              text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\n\n${textContent}`, 'ATTACHMENT CONTENT')
+              text: wrapWithBoundary(JSON.stringify(payload, null, 2), 'ATTACHMENT CONTENT', boundaryToken)
             }]
           };
         }
 
         // Binary file - return base64 content
+        const payload = {
+          _boundary: boundaryToken,
+          name,
+          contentType,
+          size,
+          encoding: 'base64',
+          content: attachment.contentBytes
+        };
         return {
           content: [{
             type: "text",
-            text: wrapWithBoundary(`Attachment: ${name} (${contentType}, ${size})\n\nBase64-encoded content (binary file):\n${attachment.contentBytes}`, 'ATTACHMENT CONTENT')
+            text: wrapWithBoundary(JSON.stringify(payload, null, 2), 'ATTACHMENT CONTENT', boundaryToken)
           }]
         };
       }
@@ -331,6 +375,7 @@ async function handleDownloadAttachments(args) {
         };
       }
 
+      const boundaryToken = generateBoundaryToken();
       const results = [];
       const errors = [];
       const savedFiles = [];
@@ -355,7 +400,7 @@ async function handleDownloadAttachments(args) {
             fs.writeFileSync(filePath, fileBuffer);
             savedFiles.push({ name: safeName, path: filePath, size });
           } catch (writeError) {
-            errors.push(`- ${name} (${contentType}, ${formatSize(size)}): Failed to save - ${writeError.message}`);
+            errors.push({ name, contentType, size: formatSize(size), error: writeError.message });
             continue;
           }
         }
@@ -368,40 +413,59 @@ async function handleDownloadAttachments(args) {
         });
       }
 
-      // Build response text
-      let responseText = '';
+      // Build response
+      const payload = {
+        _boundary: boundaryToken
+      };
 
       if (saveToPath && savedFiles.length > 0) {
         const resolvedDir = path.resolve(saveToPath);
-        responseText += `Saved ${savedFiles.length} attachment(s) to ${resolvedDir}:\n\n`;
-        responseText += savedFiles.map((f, i) =>
-          `${i + 1}. ${f.name} (${formatSize(f.size)}) → ${f.path}`
-        ).join('\n');
+        payload.savedTo = resolvedDir;
+        payload.attachments = savedFiles.map(f => ({
+          name: wrapField(f.name, boundaryToken),
+          size: formatSize(f.size),
+          path: f.path
+        }));
       } else {
-        responseText += `Downloaded ${results.length} attachment(s):\n\n`;
-        responseText += results.map((att, i) =>
-          `${i + 1}. ${att.name} (${att.contentType}, ${formatSize(att.size)})\n   Base64 content length: ${att.contentBytes.length} chars`
-        ).join('\n');
+        payload.attachments = results.map(att => ({
+          name: wrapField(att.name, boundaryToken),
+          contentType: wrapField(att.contentType, boundaryToken),
+          size: formatSize(att.size),
+          contentBytesLength: att.contentBytes.length
+        }));
       }
 
       // Report any file save errors
       if (errors.length > 0) {
-        responseText += `\n\nFailed to save ${errors.length} attachment(s):\n${errors.join('\n')}`;
+        payload.errors = errors;
       }
 
       // Note about non-file attachments
       if (otherAttachments.length > 0) {
-        responseText += `\n\nNote: ${otherAttachments.length} non-downloadable attachment(s) were skipped (item or reference attachments).`;
+        payload.skippedCount = otherAttachments.length;
+        payload.skippedNote = `${otherAttachments.length} non-downloadable attachment(s) were skipped (item or reference attachments).`;
       }
 
-      // Build content array - include attachment data as structured text when not saving
-      const content = [{ type: "text", text: wrapWithBoundary(responseText, 'ATTACHMENTS') }];
+      const summaryCount = saveToPath && savedFiles.length > 0 ? savedFiles.length : results.length;
+      const summaryAction = saveToPath && savedFiles.length > 0 ? 'Saved' : 'Downloaded';
+      const responseJson = JSON.stringify(payload, null, 2);
+
+      // Build content array
+      const content = [{ type: "text", text: `${summaryAction} ${summaryCount} attachment(s):\n\n${wrapWithBoundary(responseJson, 'ATTACHMENTS', boundaryToken)}` }];
 
       if (!saveToPath) {
         for (const att of results) {
+          const attBoundary = generateBoundaryToken();
+          const attPayload = {
+            _boundary: attBoundary,
+            name: wrapField(att.name, attBoundary),
+            contentType: wrapField(att.contentType, attBoundary),
+            size: formatSize(att.size),
+            content: att.contentBytes
+          };
           content.push({
             type: "text",
-            text: wrapWithBoundary(`Attachment: ${att.name} (${att.contentType}, ${formatSize(att.size)})\n${att.contentBytes}`, 'ATTACHMENT CONTENT')
+            text: wrapWithBoundary(JSON.stringify(attPayload, null, 2), 'ATTACHMENT CONTENT', attBoundary)
           });
         }
       }

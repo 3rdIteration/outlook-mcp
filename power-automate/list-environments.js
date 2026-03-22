@@ -3,7 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List environments handler
@@ -34,18 +34,30 @@ async function handleListEnvironments(args) {
       };
     }
 
-    const envList = response.value.map((env, index) => {
-      const props = env.properties || {};
-      const isDefault = props.isDefault ? ' [DEFAULT]' : '';
-      const region = props.azureRegionHint || 'Unknown region';
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
 
-      return `${index + 1}. ${sanitizeMetadata(props.displayName || env.name)}${isDefault}\n   ID: ${env.name}\n   Region: ${region}`;
-    }).join("\n\n");
+    const environments = response.value.map((env) => {
+      const props = env.properties || {};
+      return {
+        id: wrapField(env.name, boundaryToken),
+        displayName: wrapField(sanitizeMetadata(props.displayName || env.name), boundaryToken),
+        isDefault: props.isDefault || false,
+        region: props.azureRegionHint || 'Unknown region'
+      };
+    });
+
+    const payload = {
+      _boundary: boundaryToken,
+      environments
+    };
+
+    const envList = JSON.stringify(payload, null, 2);
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} environment(s):\n\n${wrapWithBoundary(envList, 'ENVIRONMENTS')}\n\nUse the environment ID (e.g., 'Default-12345') with other flow commands.`
+        text: `Found ${response.value.length} environment(s):\n\n${wrapWithBoundary(envList, 'ENVIRONMENTS', boundaryToken)}\n\nUse the environment ID (e.g., 'Default-12345') with other flow commands.`
       }]
     };
   } catch (error) {

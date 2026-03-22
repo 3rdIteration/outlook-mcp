@@ -100,9 +100,30 @@ function wrapWithBoundary(content, label = 'EXTERNAL DATA', token) {
   return `${startMarker}\n${content}\n${endMarker}`;
 }
 
+/**
+ * Wrap an individual field value with boundary token markers.
+ *
+ * Each external string field in a JSON response should be wrapped so
+ * the LLM can verify that the value was placed by the server (which
+ * knows the unpredictable token) and not injected by an attacker.
+ *
+ * The same token must appear in the payload's `_boundary` field and
+ * in the outer `wrapWithBoundary()` markers.
+ *
+ * @param {*} value - The field value to wrap (typically a sanitized string)
+ * @param {string} token - The boundary token (from generateBoundaryToken)
+ * @returns {string} - The value wrapped with `<<TOKEN>>value<</TOKEN>>`, or '' for empty/null
+ */
+function wrapField(value, token) {
+  const str = value == null ? '' : String(value);
+  if (!str) return '';
+  return `<<${token}>>${str}<</${token}>>`;
+}
+
 module.exports = {
   sanitizeMetadata,
   wrapWithBoundary,
+  wrapField,
   generateBoundaryToken,
   MAX_METADATA_LENGTH,
   // Export for testing

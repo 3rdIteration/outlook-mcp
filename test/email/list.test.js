@@ -17,6 +17,18 @@ function extractJsonFromBoundary(text) {
   return JSON.parse(match[1]);
 }
 
+/**
+ * Unwrap a field value that has been wrapped with boundary token markers.
+ * Input: <<TOKEN>>value<</TOKEN>>  →  Output: value
+ */
+function unwrapField(wrappedValue, token) {
+  const prefix = `<<${token}>>`;
+  const suffix = `<</${token}>>`;
+  expect(wrappedValue).toEqual(expect.stringContaining(prefix));
+  expect(wrappedValue).toEqual(expect.stringContaining(suffix));
+  return wrappedValue.slice(prefix.length, -suffix.length);
+}
+
 describe('handleListEmails', () => {
   const mockAccessToken = 'dummy_access_token';
   const mockEmails = [
@@ -80,7 +92,8 @@ describe('handleListEmails', () => {
       expect(result.content[0].text).toContain('Found 2 emails in inbox');
       // Verify structured JSON output contains email data
       const payload = extractJsonFromBoundary(result.content[0].text);
-      expect(payload.emails[0].subject).toBe('Test Email 1');
+      const token = payload._boundary;
+      expect(unwrapField(payload.emails[0].subject, token)).toBe('Test Email 1');
       expect(payload.emails[0].isRead).toBe(false);
     });
 
@@ -131,17 +144,18 @@ describe('handleListEmails', () => {
 
       // Verify structured JSON is parseable between boundary markers
       const payload = extractJsonFromBoundary(text);
+      const token = payload._boundary;
       const emails = payload.emails;
       
       expect(emails).toHaveLength(2);
-      expect(emails[0].id).toBe('email-1');
-      expect(emails[0].subject).toBe('Test Email 1');
-      expect(emails[0].from.name).toBe('John Doe');
-      expect(emails[0].from.address).toBe('john@example.com');
+      expect(unwrapField(emails[0].id, token)).toBe('email-1');
+      expect(unwrapField(emails[0].subject, token)).toBe('Test Email 1');
+      expect(unwrapField(emails[0].from.name, token)).toBe('John Doe');
+      expect(unwrapField(emails[0].from.address, token)).toBe('john@example.com');
       expect(emails[0].isRead).toBe(false);
-      expect(emails[1].id).toBe('email-2');
-      expect(emails[1].from.name).toBe('Jane Smith');
-      expect(emails[1].from.address).toBe('jane@example.com');
+      expect(unwrapField(emails[1].id, token)).toBe('email-2');
+      expect(unwrapField(emails[1].from.name, token)).toBe('Jane Smith');
+      expect(unwrapField(emails[1].from.address, token)).toBe('jane@example.com');
     });
 
     test('should handle email without sender info', async () => {
@@ -158,9 +172,10 @@ describe('handleListEmails', () => {
 
       const result = await handleListEmails({});
       const payload = extractJsonFromBoundary(result.content[0].text);
+      const token = payload._boundary;
 
-      expect(payload.emails[0].from.name).toBe('Unknown');
-      expect(payload.emails[0].from.address).toBe('unknown');
+      expect(unwrapField(payload.emails[0].from.name, token)).toBe('Unknown');
+      expect(unwrapField(payload.emails[0].from.address, token)).toBe('unknown');
     });
   });
 

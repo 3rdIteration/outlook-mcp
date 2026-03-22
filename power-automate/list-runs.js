@@ -3,7 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List flow runs handler
@@ -51,23 +51,37 @@ async function handleListRuns(args) {
     // Limit to requested count
     const runs = response.value.slice(0, count);
 
-    const runList = runs.map((run, index) => {
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+
+    const runItems = runs.map((run) => {
       const props = run.properties || {};
       const status = props.status || 'Unknown';
-      const statusIcon = getStatusIcon(status);
       const startTime = props.startTime ? new Date(props.startTime).toLocaleString() : 'Unknown';
       const endTime = props.endTime ? new Date(props.endTime).toLocaleString() : 'Running...';
       const duration = props.startTime && props.endTime
         ? formatDuration(new Date(props.endTime) - new Date(props.startTime))
         : 'N/A';
 
-      return `${index + 1}. ${statusIcon} ${sanitizeMetadata(status)}\n   Run ID: ${sanitizeMetadata(run.name)}\n   Started: ${startTime}\n   Duration: ${duration}`;
-    }).join("\n\n");
+      return {
+        id: wrapField(sanitizeMetadata(run.name), boundaryToken),
+        status,
+        startTime,
+        duration
+      };
+    });
+
+    const payload = {
+      _boundary: boundaryToken,
+      runs: runItems
+    };
+
+    const runList = JSON.stringify(payload, null, 2);
 
     return {
       content: [{
         type: "text",
-        text: `Recent ${runs.length} run(s) for this flow:\n\n${wrapWithBoundary(runList, 'FLOW RUNS')}`
+        text: `Recent ${runs.length} run(s) for this flow:\n\n${wrapWithBoundary(runList, 'FLOW RUNS', boundaryToken)}`
       }]
     };
   } catch (error) {
@@ -87,20 +101,6 @@ async function handleListRuns(args) {
       }]
     };
   }
-}
-
-/**
- * Get status icon for run status
- */
-function getStatusIcon(status) {
-  const icons = {
-    'Succeeded': '[OK]',
-    'Failed': '[FAIL]',
-    'Running': '[...]',
-    'Cancelled': '[X]',
-    'TimedOut': '[TIMEOUT]'
-  };
-  return icons[status] || '[?]';
 }
 
 /**

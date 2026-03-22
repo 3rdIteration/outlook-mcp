@@ -18,6 +18,18 @@ function extractJsonFromBoundary(text) {
   return JSON.parse(match[1]);
 }
 
+/**
+ * Unwrap a field value that has been wrapped with boundary token markers.
+ * Input: <<TOKEN>>value<</TOKEN>>  →  Output: value
+ */
+function unwrapField(wrappedValue, token) {
+  const prefix = `<<${token}>>`;
+  const suffix = `<</${token}>>`;
+  expect(wrappedValue).toEqual(expect.stringContaining(prefix));
+  expect(wrappedValue).toEqual(expect.stringContaining(suffix));
+  return wrappedValue.slice(prefix.length, -suffix.length);
+}
+
 describe('handleSearchEmails', () => {
   const mockAccessToken = 'dummy_access_token';
   const mockEmails = [
@@ -81,30 +93,29 @@ describe('handleSearchEmails', () => {
 
       const result = await handleSearchEmails({ query: 'test' });
       const payload = extractJsonFromBoundary(result.content[0].text);
+      const token = payload._boundary;
       const emails = payload.emails;
 
       expect(emails).toHaveLength(2);
 
-      // Verify first email structure
-      expect(emails[0]).toEqual(expect.objectContaining({
-        id: 'email-1',
-        subject: 'Test Email 1',
-        from: { name: 'John Doe', address: 'john@example.com' },
-        receivedDateTime: '2024-01-15T10:30:00Z',
-        isRead: false,
-        hasAttachments: true,
-        importance: 'high',
-        bodyPreview: 'Preview of email 1'
-      }));
+      // Verify first email structure (unwrap fields to check raw values)
+      expect(unwrapField(emails[0].id, token)).toBe('email-1');
+      expect(unwrapField(emails[0].subject, token)).toBe('Test Email 1');
+      expect(unwrapField(emails[0].from.name, token)).toBe('John Doe');
+      expect(unwrapField(emails[0].from.address, token)).toBe('john@example.com');
+      expect(unwrapField(emails[0].receivedDateTime, token)).toBe('2024-01-15T10:30:00Z');
+      expect(emails[0].isRead).toBe(false);
+      expect(emails[0].hasAttachments).toBe(true);
+      expect(unwrapField(emails[0].importance, token)).toBe('high');
+      expect(unwrapField(emails[0].bodyPreview, token)).toBe('Preview of email 1');
 
-      // Verify to field is structured
-      expect(emails[0].to).toEqual([
-        { name: 'Alice', address: 'alice@example.com' }
-      ]);
+      // Verify to field is structured with wrapped values
+      expect(unwrapField(emails[0].to[0].name, token)).toBe('Alice');
+      expect(unwrapField(emails[0].to[0].address, token)).toBe('alice@example.com');
 
       // Verify second email
-      expect(emails[1].id).toBe('email-2');
-      expect(emails[1].from.name).toBe('Jane Smith');
+      expect(unwrapField(emails[1].id, token)).toBe('email-2');
+      expect(unwrapField(emails[1].from.name, token)).toBe('Jane Smith');
     });
 
     test('should include message IDs at top level for easy extraction', async () => {
@@ -114,10 +125,11 @@ describe('handleSearchEmails', () => {
 
       const result = await handleSearchEmails({ subject: 'Test' });
       const payload = extractJsonFromBoundary(result.content[0].text);
+      const token = payload._boundary;
 
-      // IDs should be directly accessible as top-level fields on each email
-      expect(payload.emails[0].id).toBe('email-1');
-      expect(payload.emails[1].id).toBe('email-2');
+      // IDs should be directly accessible as top-level fields on each email (wrapped)
+      expect(unwrapField(payload.emails[0].id, token)).toBe('email-1');
+      expect(unwrapField(payload.emails[1].id, token)).toBe('email-2');
     });
 
     test('should sanitize metadata fields in JSON output', async () => {
@@ -167,9 +179,10 @@ describe('handleSearchEmails', () => {
 
       const result = await handleSearchEmails({ query: 'test' });
       const payload = extractJsonFromBoundary(result.content[0].text);
+      const token = payload._boundary;
 
-      expect(payload.emails[0].from.name).toBe('Unknown');
-      expect(payload.emails[0].from.address).toBe('unknown');
+      expect(unwrapField(payload.emails[0].from.name, token)).toBe('Unknown');
+      expect(unwrapField(payload.emails[0].from.address, token)).toBe('unknown');
     });
 
     test('should wrap results with boundary markers', async () => {

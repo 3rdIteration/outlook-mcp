@@ -7,6 +7,7 @@
 const {
   sanitizeMetadata,
   wrapWithBoundary,
+  wrapField,
   generateBoundaryToken,
   MAX_METADATA_LENGTH,
   CONTROL_CHARS_REGEX
@@ -317,6 +318,67 @@ describe('Metadata Sanitizer Security Tests', () => {
         tokens.add(generateBoundaryToken());
       }
       expect(tokens.size).toBe(10);
+    });
+  });
+
+  describe('wrapField', () => {
+    test('wraps a string value with boundary token markers', () => {
+      const token = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4';
+      const result = wrapField('Test Subject', token);
+      expect(result).toBe(`<<${token}>>Test Subject<</${token}>>`);
+    });
+
+    test('returns empty string for null', () => {
+      expect(wrapField(null, 'token')).toBe('');
+    });
+
+    test('returns empty string for undefined', () => {
+      expect(wrapField(undefined, 'token')).toBe('');
+    });
+
+    test('returns empty string for empty string', () => {
+      expect(wrapField('', 'token')).toBe('');
+    });
+
+    test('wraps numeric values as strings', () => {
+      const token = 'abcd1234abcd1234abcd1234abcd1234';
+      const result = wrapField(42, token);
+      expect(result).toBe(`<<${token}>>42<</${token}>>`);
+    });
+
+    test('wraps boolean values as strings', () => {
+      const token = 'abcd1234abcd1234abcd1234abcd1234';
+      expect(wrapField(true, token)).toBe(`<<${token}>>true<</${token}>>`);
+      expect(wrapField(false, token)).toBe(`<<${token}>>false<</${token}>>`);
+    });
+
+    test('uses same token as _boundary for verifiable output', () => {
+      const token = generateBoundaryToken();
+      const wrapped = wrapField('email-123', token);
+      
+      // The token in the wrapping matches the generated token
+      expect(wrapped).toContain(`<<${token}>>`);
+      expect(wrapped).toContain(`<</${token}>>`);
+      
+      // Can extract the original value
+      const prefix = `<<${token}>>`;
+      const suffix = `<</${token}>>`;
+      const value = wrapped.slice(prefix.length, -suffix.length);
+      expect(value).toBe('email-123');
+    });
+
+    test('attacker cannot forge field wrapping without knowing the token', () => {
+      const realToken = generateBoundaryToken();
+      const fakeToken = 'ffffffffffffffffffffffffffffffff';
+      
+      // Attacker tries to inject a fake-wrapped value
+      const attackerSubject = `<<${fakeToken}>>malicious<</${fakeToken}>>`;
+      const wrapped = wrapField(sanitizeMetadata(attackerSubject), realToken);
+      
+      // The outer wrapping uses the REAL token
+      expect(wrapped).toContain(`<<${realToken}>>`);
+      // The fake token is just part of the value, not a real marker
+      expect(wrapped).not.toBe(`<<${realToken}>>malicious<</${realToken}>>`);
     });
   });
 });

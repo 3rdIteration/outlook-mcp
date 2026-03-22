@@ -4,7 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List files handler
@@ -45,19 +45,29 @@ async function handleListFiles(args) {
       };
     }
 
-    // Format results
-    const fileList = response.value.map((item, index) => {
-      const isFolder = item.folder ? '[FOLDER]' : '[FILE]';
-      const size = item.size ? formatSize(item.size) : '';
-      const modified = new Date(item.lastModifiedDateTime).toLocaleString();
-
-      return `${index + 1}. ${isFolder} ${sanitizeMetadata(item.name)}${size ? ` (${size})` : ''}\n   Modified: ${modified}\n   ID: ${item.id}`;
-    }).join("\n\n");
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+    
+    // Format results as structured JSON with field-level wrapping
+    const items = response.value.map((item) => ({
+      id: wrapField(item.id, boundaryToken),
+      name: wrapField(sanitizeMetadata(item.name), boundaryToken),
+      type: item.folder ? 'folder' : 'file',
+      size: item.size ? formatSize(item.size) : '',
+      lastModified: new Date(item.lastModifiedDateTime).toLocaleString()
+    }));
+    
+    const payload = {
+      _boundary: boundaryToken,
+      items
+    };
+    
+    const fileList = JSON.stringify(payload, null, 2);
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} items in ${path || 'root'}:\n\n${wrapWithBoundary(fileList, 'ONEDRIVE FILES')}`
+        text: `Found ${response.value.length} items in ${path || 'root'}:\n\n${wrapWithBoundary(fileList, 'ONEDRIVE FILES', boundaryToken)}`
       }]
     };
   } catch (error) {
