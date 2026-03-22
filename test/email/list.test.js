@@ -7,6 +7,15 @@ jest.mock('../../utils/graph-api');
 jest.mock('../../auth');
 jest.mock('../../email/folder-utils');
 
+/**
+ * Extract the JSON content from between boundary markers in the response text.
+ */
+function extractJsonFromBoundary(text) {
+  const match = text.match(/---\n([\s\S]*?)\n---/);
+  expect(match).not.toBeNull();
+  return JSON.parse(match[1]);
+}
+
 describe('handleListEmails', () => {
   const mockAccessToken = 'dummy_access_token';
   const mockEmails = [
@@ -68,8 +77,10 @@ describe('handleListEmails', () => {
         10
       );
       expect(result.content[0].text).toContain('Found 2 emails in inbox');
-      expect(result.content[0].text).toContain('Test Email 1');
-      expect(result.content[0].text).toContain('[UNREAD]');
+      // Verify structured JSON output contains email data
+      const emails = extractJsonFromBoundary(result.content[0].text);
+      expect(emails[0].subject).toBe('Test Email 1');
+      expect(emails[0].isRead).toBe(false);
     });
 
     test('should list emails from specified folder', async () => {
@@ -109,17 +120,26 @@ describe('handleListEmails', () => {
       );
     });
 
-    test('should format email list correctly with sender info', async () => {
+    test('should format email list as structured JSON with sender info', async () => {
       ensureAuthenticated.mockResolvedValue(mockAccessToken);
       resolveFolderPath.mockResolvedValue(WELL_KNOWN_FOLDERS['inbox']);
       callGraphAPIPaginated.mockResolvedValue({ value: mockEmails });
 
       const result = await handleListEmails({});
+      const text = result.content[0].text;
 
-      expect(result.content[0].text).toContain('John Doe (john@example.com)');
-      expect(result.content[0].text).toContain('Jane Smith (jane@example.com)');
-      expect(result.content[0].text).toContain('Subject: Test Email 1');
-      expect(result.content[0].text).toContain('ID: email-1');
+      // Verify structured JSON is parseable between boundary markers
+      const emails = extractJsonFromBoundary(text);
+      
+      expect(emails).toHaveLength(2);
+      expect(emails[0].id).toBe('email-1');
+      expect(emails[0].subject).toBe('Test Email 1');
+      expect(emails[0].from.name).toBe('John Doe');
+      expect(emails[0].from.address).toBe('john@example.com');
+      expect(emails[0].isRead).toBe(false);
+      expect(emails[1].id).toBe('email-2');
+      expect(emails[1].from.name).toBe('Jane Smith');
+      expect(emails[1].from.address).toBe('jane@example.com');
     });
 
     test('should handle email without sender info', async () => {
@@ -135,8 +155,10 @@ describe('handleListEmails', () => {
       callGraphAPIPaginated.mockResolvedValue({ value: [emailWithoutSender] });
 
       const result = await handleListEmails({});
+      const emails = extractJsonFromBoundary(result.content[0].text);
 
-      expect(result.content[0].text).toContain('Unknown (unknown)');
+      expect(emails[0].from.name).toBe('Unknown');
+      expect(emails[0].from.address).toBe('unknown');
     });
   });
 

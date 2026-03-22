@@ -268,7 +268,7 @@ function addBooleanFiltersAsKQL(kqlTerms, filterTerms) {
 }
 
 /**
- * Format search results into a readable text format
+ * Format search results into structured JSON for easy parsing by agents
  * @param {object} response - The API response object
  * @returns {object} - MCP response object
  */
@@ -282,14 +282,29 @@ function formatSearchResults(response) {
     };
   }
   
-  // Format results
-  const emailList = response.value.map((email, index) => {
+  // Build structured results with sanitized fields
+  const emails = response.value.map((email) => {
     const sender = email.from?.emailAddress || { name: 'Unknown', address: 'unknown' };
-    const date = new Date(email.receivedDateTime).toLocaleString();
-    const readStatus = email.isRead ? '' : '[UNREAD] ';
-    
-    return `${index + 1}. ${readStatus}${date} - From: ${sanitizeMetadata(sender.name)} (${sanitizeMetadata(sender.address)})\nSubject: ${sanitizeMetadata(email.subject)}\nID: ${email.id}\n`;
-  }).join("\n");
+    return {
+      id: email.id,
+      subject: sanitizeMetadata(email.subject),
+      from: {
+        name: sanitizeMetadata(sender.name),
+        address: sanitizeMetadata(sender.address)
+      },
+      to: (email.toRecipients || []).map(r => ({
+        name: sanitizeMetadata(r.emailAddress?.name || ''),
+        address: sanitizeMetadata(r.emailAddress?.address || '')
+      })),
+      receivedDateTime: email.receivedDateTime,
+      isRead: email.isRead,
+      hasAttachments: email.hasAttachments,
+      importance: email.importance,
+      bodyPreview: sanitizeMetadata(email.bodyPreview)
+    };
+  });
+  
+  const emailList = JSON.stringify(emails, null, 2);
   
   // Add search strategy info if available
   let additionalInfo = '';
