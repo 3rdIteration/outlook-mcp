@@ -243,7 +243,7 @@ describe('handleListEmails', () => {
       const text = result.content[0].text;
 
       // Extract the boundary token from the outer text markers
-      const markerMatch = text.match(/\[boundary:([a-f0-9]{32})\]/);
+      const markerMatch = text.match(/\[boundary:([a-f0-9]{12})\]/);
       expect(markerMatch).not.toBeNull();
       const markerToken = markerMatch[1];
 

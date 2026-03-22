@@ -227,7 +227,7 @@ describe('Metadata Sanitizer Security Tests', () => {
     test('wraps content with start and end markers containing the same token', () => {
       const result = wrapWithBoundary('Hello World', 'TEST');
       // Extract the hex token from the start marker
-      const tokenMatch = result.match(/\[boundary:([a-f0-9]{32})\]/);
+      const tokenMatch = result.match(/\[boundary:([a-f0-9]{12})\]/);
       expect(tokenMatch).not.toBeNull();
       const token = tokenMatch[1];
 
@@ -239,16 +239,16 @@ describe('Metadata Sanitizer Security Tests', () => {
     test('generates a different token on each invocation', () => {
       const result1 = wrapWithBoundary('Content 1', 'TEST');
       const result2 = wrapWithBoundary('Content 2', 'TEST');
-      const token1 = result1.match(/\[boundary:([a-f0-9]{32})\]/)[1];
-      const token2 = result2.match(/\[boundary:([a-f0-9]{32})\]/)[1];
+      const token1 = result1.match(/\[boundary:([a-f0-9]{12})\]/)[1];
+      const token2 = result2.match(/\[boundary:([a-f0-9]{12})\]/)[1];
       expect(token1).not.toBe(token2);
     });
 
-    test('token is 32 hex characters (16 bytes)', () => {
+    test('token is 12 hex characters (6 bytes)', () => {
       const result = wrapWithBoundary('Test', 'LABEL');
       const token = result.match(/\[boundary:([a-f0-9]+)\]/)[1];
-      expect(token).toHaveLength(32);
-      expect(token).toMatch(/^[a-f0-9]{32}$/);
+      expect(token).toHaveLength(12);
+      expect(token).toMatch(/^[a-f0-9]{12}$/);
     });
 
     test('preserves the content between markers', () => {
@@ -289,7 +289,7 @@ describe('Metadata Sanitizer Security Tests', () => {
       const tokens = new Set();
       for (let i = 0; i < 10; i++) {
         const result = wrapWithBoundary('test', 'X');
-        const token = result.match(/\[boundary:([a-f0-9]{32})\]/)[1];
+        const token = result.match(/\[boundary:([a-f0-9]{12})\]/)[1];
         tokens.add(token);
       }
       expect(tokens.size).toBe(10);
@@ -300,16 +300,16 @@ describe('Metadata Sanitizer Security Tests', () => {
       const result = wrapWithBoundary('content', 'TEST', token);
       expect(result).toContain(`[boundary:${token}]`);
       // Both start and end should use the same provided token
-      const matches = result.match(/\[boundary:([a-f0-9]{32})\]/g);
+      const matches = result.match(/\[boundary:([a-f0-9]{12})\]/g);
       expect(matches).toHaveLength(2);
       expect(matches[0]).toBe(matches[1]);
     });
   });
 
   describe('generateBoundaryToken', () => {
-    test('returns a 32-character hex string', () => {
+    test('returns a 12-character hex string', () => {
       const token = generateBoundaryToken();
-      expect(token).toMatch(/^[a-f0-9]{32}$/);
+      expect(token).toMatch(/^[a-f0-9]{12}$/);
     });
 
     test('generates unique tokens on each call', () => {
@@ -323,7 +323,7 @@ describe('Metadata Sanitizer Security Tests', () => {
 
   describe('wrapField', () => {
     test('wraps a string value with boundary token markers', () => {
-      const token = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4';
+      const token = 'a1b2c3d4e5f6';
       const result = wrapField('Test Subject', token);
       expect(result).toBe(`<<${token}>>Test Subject<</${token}>>`);
     });
@@ -341,13 +341,13 @@ describe('Metadata Sanitizer Security Tests', () => {
     });
 
     test('wraps numeric values as strings', () => {
-      const token = 'abcd1234abcd1234abcd1234abcd1234';
+      const token = 'abcd1234abcd';
       const result = wrapField(42, token);
       expect(result).toBe(`<<${token}>>42<</${token}>>`);
     });
 
     test('wraps boolean values as strings', () => {
-      const token = 'abcd1234abcd1234abcd1234abcd1234';
+      const token = 'abcd1234abcd';
       expect(wrapField(true, token)).toBe(`<<${token}>>true<</${token}>>`);
       expect(wrapField(false, token)).toBe(`<<${token}>>false<</${token}>>`);
     });
@@ -369,7 +369,7 @@ describe('Metadata Sanitizer Security Tests', () => {
 
     test('attacker cannot forge field wrapping without knowing the token', () => {
       const realToken = generateBoundaryToken();
-      const fakeToken = 'ffffffffffffffffffffffffffffffff';
+      const fakeToken = 'ffffffffffff';
       
       // Attacker tries to inject a fake-wrapped value
       const attackerSubject = `<<${fakeToken}>>malicious<</${fakeToken}>>`;
