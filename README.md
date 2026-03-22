@@ -2,7 +2,7 @@
 
 # M365 Assistant MCP Server
 
-A comprehensive MCP (Model Context Protocol) server that connects AI assistants with Microsoft 365 services through the Microsoft Graph API and Power Automate API. Works with any MCP-compatible client including Claude Desktop, VS Code (GitHub Copilot), Cursor, and Windsurf.
+A comprehensive MCP (Model Context Protocol) server that connects AI assistants with Microsoft 365 services through the Microsoft Graph API and Power Automate API. Works with any MCP-compatible client including Claude Desktop, VS Code (GitHub Copilot), Cursor, Windsurf, and Open WebUI (via mcpo).
 
 ## Supported Services
 
@@ -329,6 +329,85 @@ Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade �
   }
 }
 ```
+
+#### Open WebUI (via mcpo)
+
+[Open WebUI](https://github.com/open-webui/open-webui) can use MCP tools through [mcpo](https://github.com/open-webui/mcpo), a lightweight proxy that converts stdio-based MCP servers into OpenAPI-compatible HTTP endpoints. No code changes are needed — your credentials never leave your local machine.
+
+**Prerequisites:**
+- [Open WebUI](https://docs.openwebui.com/) installed and running
+- Python 3.8+ (for mcpo) **or** Docker
+
+##### Option A: Run mcpo directly
+
+1. **Install mcpo:**
+   ```bash
+   pip install mcpo
+   # or, if you have uv installed:
+   uvx mcpo --help
+   ```
+
+2. **Start mcpo with the M365 MCP server:**
+   ```bash
+   OUTLOOK_CLIENT_ID="your-client-id" \
+   OUTLOOK_CLIENT_SECRET="your-client-secret" \
+   mcpo --port 8000 --api-key "your-secret-api-key" \
+     -- node /path/to/outlook-mcp/index.js
+   ```
+
+3. **Verify:** Open `http://localhost:8000/docs` to see the auto-generated OpenAPI documentation with all 37 tools.
+
+##### Option B: Run mcpo with a config file
+
+This approach is useful when running multiple MCP servers through a single mcpo instance.
+
+1. **Create `mcpo-config.json`:**
+   ```json
+   {
+     "mcpServers": {
+       "m365-assistant": {
+         "command": "node",
+         "args": ["/path/to/outlook-mcp/index.js"],
+         "env": {
+           "OUTLOOK_CLIENT_ID": "your-client-id",
+           "OUTLOOK_CLIENT_SECRET": "your-client-secret"
+         }
+       }
+     }
+   }
+   ```
+
+2. **Start mcpo:**
+   ```bash
+   mcpo --port 8000 --api-key "your-secret-api-key" --config mcpo-config.json
+   ```
+
+##### Option C: Docker Compose
+
+```yaml
+services:
+  mcpo:
+    image: ghcr.io/open-webui/mcpo:main
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mcpo-config.json:/app/config/config.json
+    command: --config /app/config/config.json --api-key "your-secret-api-key"
+```
+
+Then run `docker compose up -d`.
+
+##### Connect to Open WebUI
+
+1. In Open WebUI, go to **Settings → Tools**
+2. Click **Add Tool** (or **+**)
+3. Set the **URL** to `http://localhost:8000` (or `http://host.docker.internal:8000` if Open WebUI runs in Docker)
+4. Enter your mcpo **API key**
+5. Click **Save** — the M365 tools will be auto-discovered and available in your chats
+
+> **Tip:** You can also use the [split server entry points](#selective-service-configuration-split-servers) with mcpo (e.g., `node /path/to/outlook-mcp/server-email.js`) to expose only the tools you need.
+
+> **Note:** Remember to start the auth server (`npm run auth-server`) and complete the authentication flow before using the tools through Open WebUI.
 
 ### Selective Service Configuration (Split Servers)
 
