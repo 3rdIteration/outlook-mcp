@@ -13,12 +13,12 @@ const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } =
 /**
  * Read email handler
  * @param {object} args - Tool arguments
- * @param {string} args.id - Email ID (required)
+ * @param {string} args.emailId - Email ID (required)
  * @param {boolean} args.includeRawHtml - If true, include raw HTML (unsafe, for debugging only)
  * @returns {object} - MCP response
  */
 async function handleReadEmail(args) {
-  const emailId = args.id;
+  const emailId = args.emailId;
   const includeRawHtml = args.includeRawHtml === true;
 
   if (!emailId) {

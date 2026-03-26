@@ -99,7 +99,7 @@ describe('handleSearchEmails', () => {
       expect(emails).toHaveLength(2);
 
       // Verify first email structure (unwrap fields to check raw values)
-      expect(unwrapField(emails[0].id, token)).toBe('email-1');
+      expect(unwrapField(emails[0].emailId, token)).toBe('email-1');
       expect(unwrapField(emails[0].subject, token)).toBe('Test Email 1');
       expect(unwrapField(emails[0].from.name, token)).toBe('John Doe');
       expect(unwrapField(emails[0].from.address, token)).toBe('john@example.com');
@@ -114,7 +114,7 @@ describe('handleSearchEmails', () => {
       expect(unwrapField(emails[0].to[0].address, token)).toBe('alice@example.com');
 
       // Verify second email
-      expect(unwrapField(emails[1].id, token)).toBe('email-2');
+      expect(unwrapField(emails[1].emailId, token)).toBe('email-2');
       expect(unwrapField(emails[1].from.name, token)).toBe('Jane Smith');
     });
 
@@ -128,8 +128,8 @@ describe('handleSearchEmails', () => {
       const token = payload._boundary;
 
       // IDs should be directly accessible as top-level fields on each email (wrapped)
-      expect(unwrapField(payload.emails[0].id, token)).toBe('email-1');
-      expect(unwrapField(payload.emails[1].id, token)).toBe('email-2');
+      expect(unwrapField(payload.emails[0].emailId, token)).toBe('email-1');
+      expect(unwrapField(payload.emails[1].emailId, token)).toBe('email-2');
     });
 
     test('should sanitize metadata fields in JSON output', async () => {

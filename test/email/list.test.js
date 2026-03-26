@@ -148,12 +148,12 @@ describe('handleListEmails', () => {
       const emails = payload.emails;
       
       expect(emails).toHaveLength(2);
-      expect(unwrapField(emails[0].id, token)).toBe('email-1');
+      expect(unwrapField(emails[0].emailId, token)).toBe('email-1');
       expect(unwrapField(emails[0].subject, token)).toBe('Test Email 1');
       expect(unwrapField(emails[0].from.name, token)).toBe('John Doe');
       expect(unwrapField(emails[0].from.address, token)).toBe('john@example.com');
       expect(emails[0].isRead).toBe(false);
-      expect(unwrapField(emails[1].id, token)).toBe('email-2');
+      expect(unwrapField(emails[1].emailId, token)).toBe('email-2');
       expect(unwrapField(emails[1].from.name, token)).toBe('Jane Smith');
       expect(unwrapField(emails[1].from.address, token)).toBe('jane@example.com');
     });

@@ -289,7 +289,7 @@ function formatSearchResults(response) {
   const emails = response.value.map((email) => {
     const sender = email.from?.emailAddress || { name: 'Unknown', address: 'unknown' };
     return {
-      id: wrapField(email.id, boundaryToken),
+      emailId: wrapField(email.id, boundaryToken),
       subject: wrapField(sanitizeMetadata(email.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
       from: {
         name: wrapField(sanitizeMetadata(sender.name, config.MAX_SENDER_LENGTH), boundaryToken),

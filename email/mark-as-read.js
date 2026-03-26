@@ -11,7 +11,7 @@ const { ensureAuthenticated } = require('../auth');
  * @returns {object} - MCP response
  */
 async function handleMarkAsRead(args) {
-  const emailId = args.id;
+  const emailId = args.emailId;
   const isRead = args.isRead !== undefined ? args.isRead : true; // Default to true
   
   if (!emailId) {

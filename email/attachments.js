@@ -13,11 +13,11 @@ const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } =
 /**
  * List attachments for a specific email
  * @param {object} args - Tool arguments
- * @param {string} args.id - Email ID (required)
+ * @param {string} args.emailId - Email ID (required)
  * @returns {object} - MCP response
  */
 async function handleListAttachments(args) {
-  const emailId = args.id;
+  const emailId = args.emailId;
 
   if (!emailId) {
     return {

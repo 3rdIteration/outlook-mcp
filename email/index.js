@@ -13,7 +13,7 @@ const { handleListAttachments, handleDownloadAttachment, handleDownloadAttachmen
 const emailTools = [
   {
     name: "list-emails",
-    description: "List recent emails",
+    description: "List emails, returns emailId",
     inputSchema: {
       type: "object",
       properties: {
@@ -32,7 +32,7 @@ const emailTools = [
   },
   {
     name: "search-emails",
-    description: "Search emails by criteria",
+    description: "Search emails, returns emailId",
     inputSchema: {
       type: "object",
       properties: {
@@ -46,11 +46,11 @@ const emailTools = [
         },
         from: {
           type: "string",
-          description: "Sender address or name"
+          description: "Sender"
         },
         to: {
           type: "string",
-          description: "Recipient address or name"
+          description: "Recipient"
         },
         subject: {
           type: "string",
@@ -75,11 +75,11 @@ const emailTools = [
   },
   {
     name: "read-email",
-    description: "Read email content by ID",
+    description: "Read email content by emailId",
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        emailId: {
           type: "string",
           description: "Email ID (from list-emails or search-emails)"
         },
@@ -88,7 +88,7 @@ const emailTools = [
           description: "Include raw HTML (unsafe, debug only)"
         }
       },
-      required: ["id"]
+      required: ["emailId"]
     },
     handler: handleReadEmail
   },
@@ -178,7 +178,7 @@ const emailTools = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        emailId: {
           type: "string",
           description: "Email ID (from list-emails or search-emails)"
         },
@@ -187,7 +187,7 @@ const emailTools = [
           description: "Read (true) or unread (false), default: true"
         }
       },
-      required: ["id"]
+      required: ["emailId"]
     },
     handler: handleMarkAsRead
   },
@@ -197,12 +197,12 @@ const emailTools = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        emailId: {
           type: "string",
           description: "Email ID (from list-emails or search-emails)"
         }
       },
-      required: ["id"]
+      required: ["emailId"]
     },
     handler: handleListAttachments
   },

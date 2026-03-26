@@ -47,7 +47,7 @@ describe('handleListAttachments', () => {
       ]
     });
 
-    const result = await handleListAttachments({ id: 'email-123' });
+    const result = await handleListAttachments({ emailId: 'email-123' });
 
     expect(ensureAuthenticated).toHaveBeenCalledTimes(1);
     expect(callGraphAPI).toHaveBeenCalledWith(
@@ -67,7 +67,7 @@ describe('handleListAttachments', () => {
     ensureAuthenticated.mockResolvedValue(mockAccessToken);
     callGraphAPI.mockResolvedValue({ value: [] });
 
-    const result = await handleListAttachments({ id: 'email-123' });
+    const result = await handleListAttachments({ emailId: 'email-123' });
 
     expect(result.content[0].text).toBe('This email has no attachments.');
   });
@@ -75,7 +75,7 @@ describe('handleListAttachments', () => {
   test('should handle authentication error', async () => {
     ensureAuthenticated.mockRejectedValue(new Error('Authentication required'));
 
-    const result = await handleListAttachments({ id: 'email-123' });
+    const result = await handleListAttachments({ emailId: 'email-123' });
 
     expect(result.content[0].text).toBe(
       "Authentication required. Please use the 'authenticate' tool first."
@@ -86,7 +86,7 @@ describe('handleListAttachments', () => {
     ensureAuthenticated.mockResolvedValue(mockAccessToken);
     callGraphAPI.mockRejectedValue(new Error('API Error'));
 
-    const result = await handleListAttachments({ id: 'email-123' });
+    const result = await handleListAttachments({ emailId: 'email-123' });
 
     expect(result.content[0].text).toBe('Failed to list attachments: API Error');
   });
@@ -95,7 +95,7 @@ describe('handleListAttachments', () => {
     ensureAuthenticated.mockResolvedValue(mockAccessToken);
     callGraphAPI.mockRejectedValue(new Error("The email ID doesn't belong to the targeted mailbox"));
 
-    const result = await handleListAttachments({ id: 'bad-id' });
+    const result = await handleListAttachments({ emailId: 'bad-id' });
 
     expect(result.content[0].text).toContain('email ID seems invalid');
   });

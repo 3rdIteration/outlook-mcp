@@ -25,4 +25,12 @@ describe('SERVER_INSTRUCTIONS', () => {
     const text = config.SERVER_INSTRUCTIONS.toLowerCase();
     expect(text).toContain('prompt-injection');
   });
+
+  test('includes email workflow guidance about emailId', () => {
+    const text = config.SERVER_INSTRUCTIONS.toLowerCase();
+    expect(text).toContain('workflow');
+    expect(text).toContain('emailid');
+    expect(text).toContain('list-emails');
+    expect(text).toContain('search-emails');
+  });
 });
