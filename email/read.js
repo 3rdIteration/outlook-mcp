@@ -111,7 +111,7 @@ async function handleReadEmail(args) {
       // Build structured JSON response with field-level wrapping
       const emailData = {
         _boundary: boundaryToken,
-        id: wrapField(emailId, boundaryToken),
+        emailId: wrapField(emailId, boundaryToken),
         subject: wrapField(sanitizeMetadata(email.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
         from: {
           name: wrapField(senderName, boundaryToken),
