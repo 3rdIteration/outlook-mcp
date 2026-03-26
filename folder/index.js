@@ -70,8 +70,20 @@ const folderTools = [
   }
 ];
 
+// Read-only tools
+const folderReadTools = folderTools.filter(t =>
+  ['list-folders'].includes(t.name)
+);
+
+// Write tools
+const folderWriteTools = folderTools.filter(t =>
+  ['create-folder', 'move-emails'].includes(t.name)
+);
+
 module.exports = {
   folderTools,
+  folderReadTools,
+  folderWriteTools,
   handleListFolders,
   handleCreateFolder,
   handleMoveEmails

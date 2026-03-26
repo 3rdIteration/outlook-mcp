@@ -246,8 +246,27 @@ const emailTools = [
   }
 ];
 
+// Read-only tools: listing, searching, reading emails and attachments
+const emailReadTools = emailTools.filter(t =>
+  ['list-emails', 'search-emails', 'read-email',
+   'list-email-attachments', 'download-email-attachment', 'download-email-attachments'].includes(t.name)
+);
+
+// Write tools: send, draft, mark-as-read
+const emailWriteTools = emailTools.filter(t =>
+  ['send-email', 'draft-email', 'mark-as-read'].includes(t.name)
+);
+
+// Safe-write tools: only mark-as-read (low-risk write, also part of emailWriteTools)
+const emailSafeWriteTools = emailTools.filter(t =>
+  ['mark-as-read'].includes(t.name)
+);
+
 module.exports = {
   emailTools,
+  emailReadTools,
+  emailWriteTools,
+  emailSafeWriteTools,
   handleListEmails,
   handleSearchEmails,
   handleReadEmail,

@@ -167,8 +167,20 @@ const rulesTools = [
   }
 ];
 
+// Read-only tools
+const rulesReadTools = rulesTools.filter(t =>
+  ['list-rules'].includes(t.name)
+);
+
+// Write tools
+const rulesWriteTools = rulesTools.filter(t =>
+  ['create-rule', 'edit-rule-sequence'].includes(t.name)
+);
+
 module.exports = {
   rulesTools,
+  rulesReadTools,
+  rulesWriteTools,
   handleListRules,
   handleCreateRule,
   handleEditRuleSequence
