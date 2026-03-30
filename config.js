@@ -14,6 +14,7 @@ module.exports = {
   
   // Test mode setting
   USE_TEST_MODE: process.env.USE_TEST_MODE === 'true',
+  ALLOW_UNSAFE_RAW_HTML_DEBUG: process.env.MCP_ALLOW_UNSAFE_RAW_HTML_DEBUG === 'true',
   
   // Authentication configuration
   AUTH_CONFIG: {

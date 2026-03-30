@@ -85,7 +85,7 @@ const emailTools = [
         },
         includeRawHtml: {
           type: "boolean",
-          description: "Include raw HTML (unsafe, debug only)"
+          description: "Include raw HTML only if local unsafe debug is enabled"
         }
       },
       required: ["emailId"]

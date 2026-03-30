@@ -8,6 +8,7 @@ jest.mock('fs', () => ({
   promises: {
     readFile: jest.fn(),
     writeFile: jest.fn(),
+    chmod: jest.fn(),
     unlink: jest.fn(),
   }
 }));
@@ -87,18 +88,20 @@ describe('TokenStorage', () => {
     it('should write tokens to file', async () => {
       tokenStorage.tokens = { access_token: 'save_token' };
       await tokenStorage._saveTokensToFile();
-      expect(fs.writeFile).toHaveBeenCalledWith(tokenStorePath, JSON.stringify(tokenStorage.tokens, null, 2));
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        tokenStorePath,
+        JSON.stringify(tokenStorage.tokens, null, 2),
+        expect.objectContaining({ mode: 0o600 })
+      );
     });
 
-    it('should log warning if no tokens to save', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    it('should delete the token file if there are no tokens to persist', async () => {
       tokenStorage.tokens = null;
-      // Since it now returns false (or throws if we change it more), we expect it to return false
+      fs.unlink.mockResolvedValue();
       const result = await tokenStorage._saveTokensToFile();
-      expect(result).toBe(false); // As per current _saveTokensToFile when tokens are null
+      expect(result).toBe(true);
       expect(fs.writeFile).not.toHaveBeenCalled();
-      expect(consoleWarnSpy).toHaveBeenCalledWith('No tokens to save.');
-      consoleWarnSpy.mockRestore();
+      expect(fs.unlink).toHaveBeenCalledWith(tokenStorePath);
     });
 
     it('should throw error if fs.writeFile fails', async () => {
@@ -238,6 +241,23 @@ describe('TokenStorage', () => {
       expect(tokenStorage.tokens.access_token).toBe('new_access_token');
       expect(tokenStorage.tokens.expires_at).toBeGreaterThan(Date.now());
       expect(saveSpy).toHaveBeenCalled();
+    });
+
+    it('should include PKCE code_verifier when provided', async () => {
+      const exchangePromise = tokenStorage.exchangeCodeForTokens(mockAuthCode, { codeVerifier: 'pkce_verifier_123' });
+      const mockRes = {
+        statusCode: 200,
+        on: (event, cb) => {
+          if (event === 'data') cb(Buffer.from(JSON.stringify(mockSuccessfulTokenResponse)));
+          if (event === 'end') cb();
+        }
+      };
+      mockHttpsRequest.callback(mockRes);
+
+      await exchangePromise;
+
+      const requestBody = querystring.parse(mockHttpsRequest.write.mock.calls[0][0]);
+      expect(requestBody.code_verifier).toBe('pkce_verifier_123');
     });
 
     it('should reject if saving exchanged token fails', async () => {

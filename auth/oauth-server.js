@@ -1,9 +1,7 @@
 const express = require('express');
 const querystring = require('querystring');
-const https = require('https');
-const fs = require('fs');
-const crypto = require('crypto'); // Added for generating random string
 const TokenStorage = require('./token-storage'); // Assuming TokenStorage is in the same directory
+const { createOAuthTransactionStore } = require('./oauth-transaction-store');
 
 // HTML templates
 function escapeHtml(unsafe) {
@@ -71,6 +69,8 @@ function setupOAuthRoutes(app, tokenStorage, authConfig, envPrefix = 'MS_') {
     authConfig = createAuthConfig(envPrefix);
   }
 
+  const oauthTransactions = createOAuthTransactionStore();
+
   if (!(tokenStorage instanceof TokenStorage)) {
     console.error("Error: tokenStorage is not an instance of TokenStorage. OAuth routes will not function correctly.");
     // Optionally, you could throw an error here or disable the routes
@@ -82,14 +82,9 @@ function setupOAuthRoutes(app, tokenStorage, authConfig, envPrefix = 'MS_') {
     if (!authConfig.clientId) {
       return res.status(500).send(templates.authError('Configuration Error', 'Client ID is not configured.'));
     }
-    const state = crypto.randomBytes(16).toString('hex'); // Generate a random 16-byte string
-    // Store state in session or similar mechanism if available.
-    // For a server without sessions, this state would need to be passed through and verified differently,
-    // or a temporary server-side storage (like a short-lived cache) would be needed.
-    // For this example, we'll assume session middleware is configured elsewhere if this were a full app.
-    // If using express-session: req.session.oauthState = state;
-    // Since this is a module, actual session handling is outside its direct scope,
-    // but it's crucial for the consuming application to handle state verification.
+    const oauthTransaction = oauthTransactions.createTransaction({
+      redirectUri: authConfig.redirectUri
+    });
 
     const authorizationUrl = `${authConfig.authEndpoint}?` +
       querystring.stringify({
@@ -98,7 +93,9 @@ function setupOAuthRoutes(app, tokenStorage, authConfig, envPrefix = 'MS_') {
         redirect_uri: authConfig.redirectUri,
         scope: authConfig.scopes.join(' '),
         response_mode: 'query',
-        state: state
+        state: oauthTransaction.state,
+        code_challenge: oauthTransaction.codeChallenge,
+        code_challenge_method: 'S256'
       });
     res.redirect(authorizationUrl);
   });
@@ -133,12 +130,11 @@ function setupOAuthRoutes(app, tokenStorage, authConfig, envPrefix = 'MS_') {
         console.error("OAuth callback received without a 'state' parameter. Rejecting request to prevent potential CSRF attack.");
         return res.status(400).send(templates.authError('Missing State Parameter', 'The state parameter was missing from the OAuth callback. This is a security risk. Please try authenticating again.'));
     }
-    // Further validation of the state's VALUE (e.g., req.session.oauthState === state) is the responsibility
-    // of the application integrating this module, as session management is outside this module's scope.
-    // if (req.session && req.session.oauthState !== state) {
-    //    return res.status(400).send(templates.authError('Invalid State Parameter', 'CSRF detected. State mismatch.'));
-    // }
-    // if (req.session) delete req.session.oauthState;
+    const oauthTransaction = oauthTransactions.consumeTransaction(state);
+    if (!oauthTransaction || oauthTransaction.metadata.redirectUri !== authConfig.redirectUri) {
+      console.error("OAuth callback state mismatch or expired state. Rejecting request.");
+      return res.status(400).send(templates.authError('Invalid State Parameter', 'The OAuth state parameter was invalid or expired. Please try authenticating again.'));
+    }
 
 
     if (error) {
@@ -150,7 +146,7 @@ function setupOAuthRoutes(app, tokenStorage, authConfig, envPrefix = 'MS_') {
     }
 
     try {
-      await tokenStorage.exchangeCodeForTokens(code);
+      await tokenStorage.exchangeCodeForTokens(code, { codeVerifier: oauthTransaction.codeVerifier });
       res.send(templates.authSuccess);
     } catch (exchangeError) {
       console.error('Token exchange error:', exchangeError);
