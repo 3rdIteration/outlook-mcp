@@ -3,6 +3,26 @@ const path = require('path');
 const https = require('https');
 const querystring = require('querystring');
 
+function getSafeErrorMessage(error, fallbackMessage) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (fallbackMessage) {
+    return fallbackMessage;
+  }
+
+  return 'Unknown error';
+}
+
+function summarizeOAuthError(responseBody, statusCode, fallbackMessage) {
+  const message = responseBody?.error_description ||
+    responseBody?.error?.message ||
+    responseBody?.message;
+
+  return message || fallbackMessage || `Request failed with status ${statusCode}`;
+}
+
 class TokenStorage {
   constructor(config) {
     const tenantId = process.env.MS_TENANT_ID || 'common';
@@ -47,11 +67,26 @@ class TokenStorage {
 
   async _saveTokensToFile() {
     if (!this.tokens) {
-      console.warn('No tokens to save.');
-      return false;
+      try {
+        await fs.unlink(this.config.tokenStorePath);
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          console.error('Error deleting token cache:', error);
+          throw error;
+        }
+      }
+      return true;
     }
     try {
-      await fs.writeFile(this.config.tokenStorePath, JSON.stringify(this.tokens, null, 2));
+      const writeOptions = process.platform === 'win32'
+        ? {}
+        : { mode: 0o600 };
+
+      await fs.writeFile(
+        this.config.tokenStorePath,
+        JSON.stringify(this.tokens, null, 2),
+        writeOptions
+      );
       // Restrict token file permissions to owner-only (read/write)
       if (process.platform !== 'win32') {
         try {
@@ -178,20 +213,20 @@ class TokenStorage {
                             reject(new Error(`Access token refreshed but failed to save: ${saveError.message}`));
                         }
                     } else {
-                        console.error('Error refreshing token:', responseBody);
-                        reject(new Error(responseBody.error_description || `Token refresh failed with status ${res.statusCode}`));
+                        console.error('Token refresh failed with status:', res.statusCode);
+                        reject(new Error(summarizeOAuthError(responseBody, res.statusCode, 'Token refresh failed.')));
                     }
                 } catch (e) { // Catch any error during parsing or saving
                     console.error('Error processing refresh token response or saving tokens:', e);
-                    reject(e);
+                    reject(new Error(getSafeErrorMessage(e, 'Error processing refresh token response.')));
                 } finally {
                     this._refreshPromise = null; // Clear promise after completion
                 }
             });
         });
-        req.on('error', (error) => {
+      req.on('error', (error) => {
             console.error('HTTP error during token refresh:', error);
-            reject(error);
+            reject(new Error(getSafeErrorMessage(error, 'HTTP error during token refresh.')));
             this._refreshPromise = null; // Clear promise on error
         });
         req.write(postData);
@@ -202,7 +237,7 @@ class TokenStorage {
   }
 
 
-  async exchangeCodeForTokens(authCode) {
+  async exchangeCodeForTokens(authCode, options = {}) {
     if (!this.config.clientId || !this.config.clientSecret) {
         throw new Error("Client ID or Client Secret is not configured. Cannot exchange code for tokens.");
     }
@@ -213,7 +248,8 @@ class TokenStorage {
       grant_type: 'authorization_code',
       code: authCode,
       redirect_uri: this.config.redirectUri,
-      scope: this.config.scopes.join(' ')
+      scope: this.config.scopes.join(' '),
+      ...(options.codeVerifier ? { code_verifier: options.codeVerifier } : {})
     });
 
     const requestOptions = {
@@ -251,18 +287,18 @@ class TokenStorage {
                 reject(new Error(`Tokens exchanged but failed to save: ${saveError.message}`));
               }
             } else {
-              console.error('Error exchanging code for tokens:', responseBody);
-              reject(new Error(responseBody.error_description || `Token exchange failed with status ${res.statusCode}`));
+              console.error('Token exchange failed with status:', res.statusCode);
+              reject(new Error(summarizeOAuthError(responseBody, res.statusCode, 'Token exchange failed.')));
             }
           } catch (e) { // Catch any error during parsing or saving
-            console.error('Error processing token exchange response or saving tokens:', e, "Raw data:", data);
-            reject(new Error(`Error processing token response: ${e.message}. Response data: ${data}`));
+            console.error('Error processing token exchange response or saving tokens:', e);
+            reject(new Error(`Error processing token response: ${getSafeErrorMessage(e)}`));
           }
         });
       });
       req.on('error', (error) => {
         console.error('HTTP error during code exchange:', error);
-        reject(error);
+        reject(new Error(getSafeErrorMessage(error, 'HTTP error during code exchange.')));
       });
       req.write(postData);
       req.end();

@@ -5,12 +5,47 @@ const querystring = require('querystring');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { createOAuthTransactionStore } = require('./auth/oauth-transaction-store');
 
 // Load environment variables from .env file
 require('dotenv').config();
 
 // Log to console
 console.log('Starting Outlook Authentication Server');
+
+function escapeHtml(unsafe) {
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function saveTokensToFile(tokens) {
+  const writeOptions = process.platform === 'win32'
+    ? { encoding: 'utf8' }
+    : { encoding: 'utf8', mode: 0o600 };
+
+  fs.writeFileSync(AUTH_CONFIG.tokenStorePath, JSON.stringify(tokens, null, 2), writeOptions);
+
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(AUTH_CONFIG.tokenStorePath, 0o600);
+    } catch (error) {
+      console.warn('Could not harden token file permissions:', error.message);
+    }
+  }
+}
+
+function summarizeOAuthError(statusCode, responseData, fallbackMessage) {
+  try {
+    const parsed = JSON.parse(responseData);
+    return parsed?.error_description || parsed?.error?.message || parsed?.message || fallbackMessage;
+  } catch (error) {
+    return fallbackMessage;
+  }
+}
 
 // Authentication configuration
 const AUTH_CONFIG = {
@@ -33,6 +68,8 @@ const AUTH_CONFIG = {
   ],
   tokenStorePath: path.join(process.env.HOME || process.env.USERPROFILE, '.outlook-mcp-tokens.json')
 };
+
+const oauthTransactions = createOAuthTransactionStore();
 
 // Create HTTP server
 const server = http.createServer((req, res) => {
@@ -60,10 +97,41 @@ const server = http.createServer((req, res) => {
           <body>
             <h1>Authentication Error</h1>
             <div class="error-box">
-              <p><strong>Error:</strong> ${query.error}</p>
-              <p><strong>Description:</strong> ${query.error_description || 'No description provided'}</p>
+              <p><strong>Error:</strong> ${escapeHtml(query.error)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(query.error_description || 'No description provided')}</p>
             </div>
             <p>Please close this window and try again.</p>
+          </body>
+        </html>
+      `);
+      return;
+    }
+
+    if (!query.state) {
+      console.error('OAuth callback received without state parameter');
+      res.writeHead(400, { 'Content-Type': 'text/html' });
+      res.end(`
+        <html>
+          <head><title>Invalid OAuth State</title></head>
+          <body>
+            <h1>Invalid OAuth State</h1>
+            <p>The OAuth state parameter was missing. Please restart authentication.</p>
+          </body>
+        </html>
+      `);
+      return;
+    }
+
+    const oauthTransaction = oauthTransactions.consumeTransaction(query.state);
+    if (!oauthTransaction || oauthTransaction.metadata.redirectUri !== AUTH_CONFIG.redirectUri) {
+      console.error('OAuth callback received with invalid or expired state');
+      res.writeHead(400, { 'Content-Type': 'text/html' });
+      res.end(`
+        <html>
+          <head><title>Invalid OAuth State</title></head>
+          <body>
+            <h1>Invalid OAuth State</h1>
+            <p>The OAuth state parameter was invalid or expired. Please restart authentication.</p>
           </body>
         </html>
       `);
@@ -74,7 +142,7 @@ const server = http.createServer((req, res) => {
       console.log('Authorization code received, exchanging for tokens...');
       
       // Exchange code for tokens
-      exchangeCodeForTokens(query.code)
+      exchangeCodeForTokens(query.code, oauthTransaction.codeVerifier)
         .then((tokens) => {
           console.log('Token exchange successful');
           res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -115,7 +183,7 @@ const server = http.createServer((req, res) => {
               <body>
                 <h1>Token Exchange Error</h1>
                 <div class="error-box">
-                  <p>${error.message}</p>
+                  <p>${escapeHtml(error.message)}</p>
                 </div>
                 <p>Please close this window and try again.</p>
               </body>
@@ -178,18 +246,20 @@ const server = http.createServer((req, res) => {
       return;
     }
     
-    // Get client_id from query parameters or use the default
-    const query = parsedUrl.query;
-    const clientId = query.client_id || AUTH_CONFIG.clientId;
-    
+    const oauthTransaction = oauthTransactions.createTransaction({
+      redirectUri: AUTH_CONFIG.redirectUri
+    });
+
     // Build the authorization URL
     const authParams = {
-      client_id: clientId,
+      client_id: AUTH_CONFIG.clientId,
       response_type: 'code',
       redirect_uri: AUTH_CONFIG.redirectUri,
       scope: AUTH_CONFIG.scopes.join(' '),
       response_mode: 'query',
-      state: Date.now().toString() // Simple state parameter for security
+      state: oauthTransaction.state,
+      code_challenge: oauthTransaction.codeChallenge,
+      code_challenge_method: 'S256'
     };
     
     const authUrl = `${AUTH_CONFIG.authorityHost}/${AUTH_CONFIG.tenantId}/oauth2/v2.0/authorize?${querystring.stringify(authParams)}`;
@@ -230,7 +300,7 @@ const server = http.createServer((req, res) => {
   }
 });
 
-function exchangeCodeForTokens(code) {
+function exchangeCodeForTokens(code, codeVerifier) {
   return new Promise((resolve, reject) => {
     const postData = querystring.stringify({
       client_id: AUTH_CONFIG.clientId,
@@ -238,7 +308,8 @@ function exchangeCodeForTokens(code) {
       code: code,
       redirect_uri: AUTH_CONFIG.redirectUri,
       grant_type: 'authorization_code',
-      scope: AUTH_CONFIG.scopes.join(' ')
+      scope: AUTH_CONFIG.scopes.join(' '),
+      ...(codeVerifier ? { code_verifier: codeVerifier } : {})
     });
     
     const options = {
@@ -270,7 +341,7 @@ function exchangeCodeForTokens(code) {
             tokenResponse.expires_at = expiresAt;
             
             // Save tokens to file
-            fs.writeFileSync(AUTH_CONFIG.tokenStorePath, JSON.stringify(tokenResponse, null, 2), 'utf8');
+            saveTokensToFile(tokenResponse);
             console.log(`Tokens saved to ${AUTH_CONFIG.tokenStorePath}`);
             
             resolve(tokenResponse);
@@ -278,7 +349,7 @@ function exchangeCodeForTokens(code) {
             reject(new Error(`Error parsing token response: ${error.message}`));
           }
         } else {
-          reject(new Error(`Token exchange failed with status ${res.statusCode}: ${data}`));
+          reject(new Error(summarizeOAuthError(res.statusCode, data, `Token exchange failed with status ${res.statusCode}`)));
         }
       });
     });

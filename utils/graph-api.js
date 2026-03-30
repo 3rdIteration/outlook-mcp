@@ -5,6 +5,26 @@ const https = require('https');
 const config = require('../config');
 const mockData = require('./mock-data');
 
+function debugLog(...args) {
+  if (process.env.DEBUG_GRAPH_API === 'true') {
+    console.error(...args);
+  }
+}
+
+function summarizeApiError(statusCode, responseData, fallbackMessage) {
+  try {
+    const parsed = JSON.parse(responseData);
+    const apiMessage = parsed?.error?.message || parsed?.error_description || parsed?.message;
+    if (apiMessage) {
+      return apiMessage;
+    }
+  } catch (error) {
+    // Ignore parse failures and fall back to a generic message.
+  }
+
+  return fallbackMessage || `API call failed with status ${statusCode}`;
+}
+
 /**
  * Makes a request to the Microsoft Graph API
  * @param {string} accessToken - The access token for authentication
@@ -17,19 +37,19 @@ const mockData = require('./mock-data');
 async function callGraphAPI(accessToken, method, path, data = null, queryParams = {}) {
   // For test tokens, we'll simulate the API call
   if (config.USE_TEST_MODE && accessToken.startsWith('test_access_token_')) {
-    console.error(`TEST MODE: Simulating ${method} ${path} API call`);
+    debugLog(`TEST MODE: Simulating ${method} ${path} API call`);
     return mockData.simulateGraphAPIResponse(method, path, data, queryParams);
   }
 
   try {
-    console.error(`Making real API call: ${method} ${path}`);
+    debugLog(`Making real API call: ${method} ${path}`);
     
     // Check if path already contains the full URL (from nextLink)
     let finalUrl;
     if (path.startsWith('http://') || path.startsWith('https://')) {
       // Path is already a full URL (from pagination nextLink)
       finalUrl = path;
-      console.error(`Using full URL from nextLink: ${finalUrl}`);
+      debugLog(`Using full URL from nextLink: ${finalUrl}`);
     } else {
       // Build URL from path and queryParams
       // Encode path segments properly
@@ -67,11 +87,11 @@ async function callGraphAPI(accessToken, method, path, data = null, queryParams 
           queryString = '?' + queryString;
         }
         
-        console.error(`Query string: ${queryString}`);
+        debugLog(`Query string: ${queryString}`);
       }
       
       finalUrl = `${config.GRAPH_API_ENDPOINT}${encodedPath}${queryString}`;
-      console.error(`Full URL: ${finalUrl}`);
+      debugLog(`Full URL: ${finalUrl}`);
     }
     
     return new Promise((resolve, reject) => {
@@ -103,7 +123,7 @@ async function callGraphAPI(accessToken, method, path, data = null, queryParams 
             // Token expired or invalid
             reject(new Error('UNAUTHORIZED'));
           } else {
-            reject(new Error(`API call failed with status ${res.statusCode}: ${responseData}`));
+            reject(new Error(summarizeApiError(res.statusCode, responseData)));
           }
         });
       });
@@ -119,7 +139,7 @@ async function callGraphAPI(accessToken, method, path, data = null, queryParams 
       req.end();
     });
   } catch (error) {
-    console.error('Error calling Graph API:', error);
+    debugLog('Error calling Graph API:', error);
     throw error;
   }
 }
@@ -149,39 +169,39 @@ async function callGraphAPIPaginated(accessToken, method, path, queryParams = {}
       const response = await callGraphAPI(accessToken, method, currentUrl, null, currentParams);
       
       // Add items from this page
-      if (response.value && Array.isArray(response.value)) {
-        allItems.push(...response.value);
-        console.error(`Pagination: Retrieved ${response.value.length} items, total so far: ${allItems.length}`);
-      }
+        if (response.value && Array.isArray(response.value)) {
+          allItems.push(...response.value);
+          debugLog(`Pagination: Retrieved ${response.value.length} items, total so far: ${allItems.length}`);
+        }
 
       // Check if we've reached the desired count
-      if (maxCount > 0 && allItems.length >= maxCount) {
-        console.error(`Pagination: Reached max count of ${maxCount}, stopping`);
-        break;
-      }
+        if (maxCount > 0 && allItems.length >= maxCount) {
+          debugLog(`Pagination: Reached max count of ${maxCount}, stopping`);
+          break;
+        }
 
       // Get next page URL
       nextLink = response['@odata.nextLink'];
       
-      if (nextLink) {
-        // Pass the full nextLink URL directly to callGraphAPI
-        currentUrl = nextLink;
-        currentParams = {}; // nextLink already contains all params
-        console.error(`Pagination: Following nextLink, ${allItems.length} items so far`);
-      }
+        if (nextLink) {
+          // Pass the full nextLink URL directly to callGraphAPI
+          currentUrl = nextLink;
+          currentParams = {}; // nextLink already contains all params
+          debugLog(`Pagination: Following nextLink, ${allItems.length} items so far`);
+        }
     } while (nextLink);
 
     // Trim to exact count if needed
     const finalItems = maxCount > 0 ? allItems.slice(0, maxCount) : allItems;
 
-    console.error(`Pagination complete: Retrieved ${finalItems.length} total items`);
+    debugLog(`Pagination complete: Retrieved ${finalItems.length} total items`);
     
     return {
       value: finalItems,
       '@odata.count': finalItems.length
     };
   } catch (error) {
-    console.error('Error during pagination:', error);
+    debugLog('Error during pagination:', error);
     throw error;
   }
 }
@@ -196,13 +216,13 @@ async function callGraphAPIPaginated(accessToken, method, path, queryParams = {}
 async function callGraphAPIDownload(accessToken, path) {
   // For test tokens, simulate download
   if (config.USE_TEST_MODE && accessToken.startsWith('test_access_token_')) {
-    console.error(`TEST MODE: Simulating download for ${path}`);
+    debugLog(`TEST MODE: Simulating download for ${path}`);
     return `https://example.com/download/${Date.now()}`;
   }
 
   return new Promise((resolve, reject) => {
     const fullUrl = `${config.GRAPH_API_ENDPOINT}${path}`;
-    console.error(`Making download request: GET ${fullUrl}`);
+    debugLog(`Making download request: GET ${fullUrl}`);
 
     const options = {
       method: 'GET',
@@ -241,7 +261,7 @@ async function callGraphAPIDownload(accessToken, path) {
           responseData += chunk;
         });
         res.on('end', () => {
-          reject(new Error(`Download request failed with status ${res.statusCode}: ${responseData}`));
+          reject(new Error(summarizeApiError(res.statusCode, responseData, `Download request failed with status ${res.statusCode}`)));
         });
       }
     });

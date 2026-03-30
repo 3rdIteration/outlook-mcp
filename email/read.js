@@ -14,7 +14,7 @@ const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } =
  * Read email handler
  * @param {object} args - Tool arguments
  * @param {string} args.emailId - Email ID (required)
- * @param {boolean} args.includeRawHtml - If true, include raw HTML (unsafe, for debugging only)
+ * @param {boolean} args.includeRawHtml - If true, include raw HTML only when explicitly enabled via MCP_ALLOW_UNSAFE_RAW_HTML_DEBUG=true
  * @returns {object} - MCP response
  */
 async function handleReadEmail(args) {
@@ -132,10 +132,14 @@ async function handleReadEmail(args) {
 
       const emailJson = JSON.stringify(emailData, null, 2);
 
-      // Optionally include raw HTML for debugging (not recommended for normal use)
+      // Optionally include raw HTML for debugging only when explicitly enabled.
       let rawHtmlSection = '';
       if (includeRawHtml && email.body?.contentType === 'html') {
-        rawHtmlSection = `\n\n--- RAW HTML (UNSAFE - FOR DEBUGGING ONLY) ---\n${email.body.content}\n--- END RAW HTML ---`;
+        if (config.ALLOW_UNSAFE_RAW_HTML_DEBUG) {
+          rawHtmlSection = `\n\n--- RAW HTML (UNSAFE - FOR DEBUGGING ONLY) ---\n${email.body.content}\n--- END RAW HTML ---`;
+        } else {
+          rawHtmlSection = '\n\n[Raw HTML omitted for security. Set MCP_ALLOW_UNSAFE_RAW_HTML_DEBUG=true in a trusted local debug environment to include it.]';
+        }
       }
 
       return {
