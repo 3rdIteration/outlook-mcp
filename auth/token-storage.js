@@ -178,11 +178,11 @@ class TokenStorage {
                             reject(new Error(`Access token refreshed but failed to save: ${saveError.message}`));
                         }
                     } else {
-                        console.error('Error refreshing token:', responseBody);
+                        console.error('Error refreshing token. Status:', res.statusCode);
                         reject(new Error(responseBody.error_description || `Token refresh failed with status ${res.statusCode}`));
                     }
                 } catch (e) { // Catch any error during parsing or saving
-                    console.error('Error processing refresh token response or saving tokens:', e);
+                    console.error('Error processing refresh token response');
                     reject(e);
                 } finally {
                     this._refreshPromise = null; // Clear promise after completion
@@ -251,12 +251,12 @@ class TokenStorage {
                 reject(new Error(`Tokens exchanged but failed to save: ${saveError.message}`));
               }
             } else {
-              console.error('Error exchanging code for tokens:', responseBody);
+              console.error('Error exchanging code for tokens. Status:', res.statusCode);
               reject(new Error(responseBody.error_description || `Token exchange failed with status ${res.statusCode}`));
             }
           } catch (e) { // Catch any error during parsing or saving
-            console.error('Error processing token exchange response or saving tokens:', e, "Raw data:", data);
-            reject(new Error(`Error processing token response: ${e.message}. Response data: ${data}`));
+            console.error('Error processing token exchange response');
+            reject(new Error('Error processing token response'));
           }
         });
       });
