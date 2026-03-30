@@ -3,7 +3,14 @@
  */
 
 /**
- * Escapes a string for use in OData queries
+ * Escapes a string for use in OData string literals.
+ *
+ * In OData, string values are enclosed in single quotes and the only
+ * required escape is doubling single quotes.  We also strip control
+ * characters (U+0000–U+001F) to prevent query-syntax injection, but
+ * keep punctuation that is valid inside a quoted string literal (e.g.
+ * hyphens, colons, slashes, etc.).
+ *
  * @param {string} str - The string to escape
  * @returns {string} - The escaped string
  */
@@ -11,13 +18,12 @@ function escapeODataString(str) {
   if (!str) return str;
   
   // Replace single quotes with double single quotes (OData escaping)
-  // And remove any special characters that could cause OData syntax errors
   str = str.replace(/'/g, "''");
   
-  // Escape other potentially problematic characters
-  str = str.replace(/[\(\)\{\}\[\]\:\;\,\/\?\&\=\+\*\%\$\#\@\!\^]/g, '');
+  // Remove control characters that could cause OData syntax errors
+  // eslint-disable-next-line no-control-regex
+  str = str.replace(/[\x00-\x1F\x7F]/g, '');
   
-  console.error(`Escaped OData string: '${str}'`);
   return str;
 }
 

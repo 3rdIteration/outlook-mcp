@@ -5,12 +5,30 @@ const querystring = require('querystring');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Load environment variables from .env file
 require('dotenv').config();
 
+// HTML-escape helper to prevent XSS in error responses
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Log to console
 console.log('Starting Outlook Authentication Server');
+
+// Pending OAuth state tokens (short-lived, CSRF protection).
+// In-memory only — lost on server restart. This is acceptable for a localhost
+// development auth server; users can simply re-initiate the OAuth flow.
+const pendingStates = new Map();
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Authentication configuration
 const AUTH_CONFIG = {
@@ -27,7 +45,6 @@ const AUTH_CONFIG = {
     'Mail.Send',
     'Calendars.Read',
     'Calendars.ReadWrite',
-    'Contacts.Read',
     'Files.Read',
     'Files.ReadWrite'
   ],
@@ -45,7 +62,7 @@ const server = http.createServer((req, res) => {
     const query = parsedUrl.query;
     
     if (query.error) {
-      console.error(`Authentication error: ${query.error} - ${query.error_description}`);
+      console.error(`Authentication error: ${query.error}`);
       res.writeHead(400, { 'Content-Type': 'text/html' });
       res.end(`
         <html>
@@ -60,8 +77,8 @@ const server = http.createServer((req, res) => {
           <body>
             <h1>Authentication Error</h1>
             <div class="error-box">
-              <p><strong>Error:</strong> ${query.error}</p>
-              <p><strong>Description:</strong> ${query.error_description || 'No description provided'}</p>
+              <p><strong>Error:</strong> ${escapeHtml(query.error)}</p>
+              <p><strong>Description:</strong> ${escapeHtml(query.error_description || 'No description provided')}</p>
             </div>
             <p>Please close this window and try again.</p>
           </body>
@@ -71,6 +88,34 @@ const server = http.createServer((req, res) => {
     }
     
     if (query.code) {
+      // Verify CSRF state parameter
+      const state = query.state;
+      if (!state || !pendingStates.has(state)) {
+        console.error('OAuth callback: missing or invalid state parameter (potential CSRF)');
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end(`
+          <html>
+            <head>
+              <title>Invalid State</title>
+              <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+                h1 { color: #d9534f; }
+                .error-box { background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 4px; }
+              </style>
+            </head>
+            <body>
+              <h1>Invalid State Parameter</h1>
+              <div class="error-box">
+                <p>The OAuth state parameter is missing or does not match. This may indicate a CSRF attack.</p>
+              </div>
+              <p>Please close this window and try authenticating again.</p>
+            </body>
+          </html>
+        `);
+        return;
+      }
+      pendingStates.delete(state);
+
       console.log('Authorization code received, exchanging for tokens...');
       
       // Exchange code for tokens
@@ -100,7 +145,7 @@ const server = http.createServer((req, res) => {
           `);
         })
         .catch((error) => {
-          console.error(`Token exchange error: ${error.message}`);
+          console.error('Token exchange error');
           res.writeHead(500, { 'Content-Type': 'text/html' });
           res.end(`
             <html>
@@ -115,7 +160,7 @@ const server = http.createServer((req, res) => {
               <body>
                 <h1>Token Exchange Error</h1>
                 <div class="error-box">
-                  <p>${error.message}</p>
+                  <p>Failed to exchange authorization code for tokens. Please try again.</p>
                 </div>
                 <p>Please close this window and try again.</p>
               </body>
@@ -182,18 +227,28 @@ const server = http.createServer((req, res) => {
     const query = parsedUrl.query;
     const clientId = query.client_id || AUTH_CONFIG.clientId;
     
-    // Build the authorization URL
+    // Build the authorization URL with cryptographically random state for CSRF protection
+    const state = crypto.randomBytes(32).toString('hex');
+    pendingStates.set(state, Date.now());
+
+    // Clean up expired state tokens
+    for (const [key, timestamp] of pendingStates) {
+      if (Date.now() - timestamp > STATE_TTL_MS) {
+        pendingStates.delete(key);
+      }
+    }
+
     const authParams = {
       client_id: clientId,
       response_type: 'code',
       redirect_uri: AUTH_CONFIG.redirectUri,
       scope: AUTH_CONFIG.scopes.join(' '),
       response_mode: 'query',
-      state: Date.now().toString() // Simple state parameter for security
+      state: state
     };
     
     const authUrl = `${AUTH_CONFIG.authorityHost}/${AUTH_CONFIG.tenantId}/oauth2/v2.0/authorize?${querystring.stringify(authParams)}`;
-    console.log(`Redirecting to: ${authUrl}`);
+    console.log('Redirecting to Microsoft login page');
     
     // Redirect to Microsoft's login page
     res.writeHead(302, { 'Location': authUrl });
@@ -269,16 +324,23 @@ function exchangeCodeForTokens(code) {
             // Add expires_at for easier expiration checking
             tokenResponse.expires_at = expiresAt;
             
-            // Save tokens to file
+            // Save tokens to file with restricted permissions
             fs.writeFileSync(AUTH_CONFIG.tokenStorePath, JSON.stringify(tokenResponse, null, 2), 'utf8');
-            console.log(`Tokens saved to ${AUTH_CONFIG.tokenStorePath}`);
+            if (process.platform !== 'win32') {
+              try {
+                fs.chmodSync(AUTH_CONFIG.tokenStorePath, 0o600);
+              } catch (chmodErr) {
+                console.warn('Could not set token file permissions:', chmodErr.message);
+              }
+            }
+            console.log('Tokens saved securely');
             
             resolve(tokenResponse);
           } catch (error) {
             reject(new Error(`Error parsing token response: ${error.message}`));
           }
         } else {
-          reject(new Error(`Token exchange failed with status ${res.statusCode}: ${data}`));
+          reject(new Error(`Token exchange failed with status ${res.statusCode}`));
         }
       });
     });
@@ -297,7 +359,6 @@ const PORT = 3333;
 server.listen(PORT, () => {
   console.log(`Authentication server running at http://localhost:${PORT}`);
   console.log(`Waiting for authentication callback at ${AUTH_CONFIG.redirectUri}`);
-  console.log(`Token will be stored at: ${AUTH_CONFIG.tokenStorePath}`);
   
   if (!AUTH_CONFIG.clientId || !AUTH_CONFIG.clientSecret) {
     console.log('\n⚠️  WARNING: Microsoft Graph API credentials are not set.');

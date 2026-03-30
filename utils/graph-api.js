@@ -103,7 +103,7 @@ async function callGraphAPI(accessToken, method, path, data = null, queryParams 
             // Token expired or invalid
             reject(new Error('UNAUTHORIZED'));
           } else {
-            reject(new Error(`API call failed with status ${res.statusCode}: ${responseData}`));
+            reject(new Error(`API call failed with status ${res.statusCode}`));
           }
         });
       });
@@ -241,7 +241,7 @@ async function callGraphAPIDownload(accessToken, path) {
           responseData += chunk;
         });
         res.on('end', () => {
-          reject(new Error(`Download request failed with status ${res.statusCode}: ${responseData}`));
+          reject(new Error(`Download request failed with status ${res.statusCode}`));
         });
       }
     });
