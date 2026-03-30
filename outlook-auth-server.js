@@ -24,7 +24,9 @@ function escapeHtml(str) {
 // Log to console
 console.log('Starting Outlook Authentication Server');
 
-// Pending OAuth state tokens (short-lived, CSRF protection)
+// Pending OAuth state tokens (short-lived, CSRF protection).
+// In-memory only — lost on server restart. This is acceptable for a localhost
+// development auth server; users can simply re-initiate the OAuth flow.
 const pendingStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
