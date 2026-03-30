@@ -4,7 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * Search files handler
@@ -46,20 +46,30 @@ async function handleSearchFiles(args) {
       };
     }
 
-    // Format results
-    const fileList = response.value.map((item, index) => {
-      const isFolder = item.folder ? '[FOLDER]' : '[FILE]';
-      const size = item.size ? formatSize(item.size) : '';
-      const modified = new Date(item.lastModifiedDateTime).toLocaleString();
-      const path = item.parentReference?.path?.replace('/drive/root:', '') || '/';
-
-      return `${index + 1}. ${isFolder} ${sanitizeMetadata(item.name)}${size ? ` (${size})` : ''}\n   Path: ${path}\n   Modified: ${modified}\n   ID: ${item.id}`;
-    }).join("\n\n");
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+    
+    // Format results as structured JSON with field-level wrapping
+    const items = response.value.map((item) => ({
+      id: wrapField(item.id, boundaryToken),
+      name: wrapField(sanitizeMetadata(item.name), boundaryToken),
+      type: item.folder ? 'folder' : 'file',
+      size: item.size ? wrapField(formatSize(item.size), boundaryToken) : '',
+      path: wrapField(item.parentReference?.path?.replace('/drive/root:', '') || '/', boundaryToken),
+      lastModified: wrapField(new Date(item.lastModifiedDateTime).toLocaleString(), boundaryToken)
+    }));
+    
+    const payload = {
+      _boundary: boundaryToken,
+      items
+    };
+    
+    const fileList = JSON.stringify(payload, null, 2);
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} items matching "${sanitizeMetadata(query)}":\n\n${wrapWithBoundary(fileList, 'SEARCH RESULTS')}`
+        text: `Found ${response.value.length} items matching "${sanitizeMetadata(query)}":\n\n${wrapWithBoundary(fileList, 'SEARCH RESULTS', boundaryToken)}`
       }]
     };
   } catch (error) {

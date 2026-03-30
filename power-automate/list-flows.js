@@ -3,7 +3,7 @@
  */
 const { callFlowAPI } = require('./flow-api');
 const { getFlowAccessToken } = require('../auth/token-manager');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List flows handler
@@ -46,20 +46,35 @@ async function handleListFlows(args) {
       };
     }
 
-    const flowList = response.value.map((flow, index) => {
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+
+    const flows = response.value.map((flow) => {
       const props = flow.properties || {};
       const state = props.state || 'Unknown';
-      const stateIcon = state === 'Started' ? '[ON]' : '[OFF]';
       const triggerType = props.definition?.triggers ? Object.keys(props.definition.triggers)[0] : 'Unknown';
       const created = props.createdTime ? new Date(props.createdTime).toLocaleDateString() : 'Unknown';
 
-      return `${index + 1}. ${stateIcon} ${sanitizeMetadata(props.displayName || flow.name)}\n   ID: ${flow.name}\n   Trigger: ${triggerType}\n   Created: ${created}`;
-    }).join("\n\n");
+      return {
+        id: wrapField(flow.name, boundaryToken),
+        displayName: wrapField(sanitizeMetadata(props.displayName || flow.name), boundaryToken),
+        state: wrapField(state, boundaryToken),
+        trigger: wrapField(triggerType, boundaryToken),
+        created: wrapField(created, boundaryToken)
+      };
+    });
+
+    const payload = {
+      _boundary: boundaryToken,
+      flows
+    };
+
+    const flowList = JSON.stringify(payload, null, 2);
 
     return {
       content: [{
         type: "text",
-        text: `Found ${response.value.length} flow(s) in environment:\n\n${wrapWithBoundary(flowList, 'FLOWS')}`
+        text: `Found ${response.value.length} flow(s) in environment:\n\n${wrapWithBoundary(flowList, 'FLOWS', boundaryToken)}`
       }]
     };
   } catch (error) {

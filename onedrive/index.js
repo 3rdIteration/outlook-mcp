@@ -185,8 +185,21 @@ const onedriveTools = [
   }
 ];
 
+// Read-only tools
+const onedriveReadTools = onedriveTools.filter(t =>
+  ['onedrive-list', 'onedrive-search', 'onedrive-download'].includes(t.name)
+);
+
+// Write tools
+const onedriveWriteTools = onedriveTools.filter(t =>
+  ['onedrive-upload', 'onedrive-upload-large', 'onedrive-share',
+   'onedrive-create-folder', 'onedrive-delete'].includes(t.name)
+);
+
 module.exports = {
   onedriveTools,
+  onedriveReadTools,
+  onedriveWriteTools,
   handleListFiles,
   handleSearchFiles,
   handleDownload,

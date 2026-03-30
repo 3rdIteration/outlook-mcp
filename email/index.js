@@ -13,7 +13,7 @@ const { handleListAttachments, handleDownloadAttachment, handleDownloadAttachmen
 const emailTools = [
   {
     name: "list-emails",
-    description: "List recent emails",
+    description: "List emails, returns emailId",
     inputSchema: {
       type: "object",
       properties: {
@@ -32,7 +32,7 @@ const emailTools = [
   },
   {
     name: "search-emails",
-    description: "Search emails by criteria",
+    description: "Search emails, returns emailId",
     inputSchema: {
       type: "object",
       properties: {
@@ -46,11 +46,11 @@ const emailTools = [
         },
         from: {
           type: "string",
-          description: "Sender address or name"
+          description: "Sender"
         },
         to: {
           type: "string",
-          description: "Recipient address or name"
+          description: "Recipient"
         },
         subject: {
           type: "string",
@@ -75,20 +75,20 @@ const emailTools = [
   },
   {
     name: "read-email",
-    description: "Read email content by ID",
+    description: "Read email content by emailId",
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         includeRawHtml: {
           type: "boolean",
           description: "Include raw HTML (unsafe, debug only)"
         }
       },
-      required: ["id"]
+      required: ["emailId"]
     },
     handler: handleReadEmail
   },
@@ -178,16 +178,16 @@ const emailTools = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         isRead: {
           type: "boolean",
           description: "Read (true) or unread (false), default: true"
         }
       },
-      required: ["id"]
+      required: ["emailId"]
     },
     handler: handleMarkAsRead
   },
@@ -197,12 +197,12 @@ const emailTools = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
+        emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         }
       },
-      required: ["id"]
+      required: ["emailId"]
     },
     handler: handleListAttachments
   },
@@ -214,7 +214,7 @@ const emailTools = [
       properties: {
         emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         attachmentId: {
           type: "string",
@@ -233,7 +233,7 @@ const emailTools = [
       properties: {
         emailId: {
           type: "string",
-          description: "Email ID"
+          description: "Email ID (from list-emails or search-emails)"
         },
         saveToPath: {
           type: "string",
@@ -246,8 +246,27 @@ const emailTools = [
   }
 ];
 
+// Read-only tools: listing, searching, reading emails and attachments
+const emailReadTools = emailTools.filter(t =>
+  ['list-emails', 'search-emails', 'read-email',
+   'list-email-attachments', 'download-email-attachment', 'download-email-attachments'].includes(t.name)
+);
+
+// Write tools: send, draft, mark-as-read
+const emailWriteTools = emailTools.filter(t =>
+  ['send-email', 'draft-email', 'mark-as-read'].includes(t.name)
+);
+
+// Safe-write tools: only mark-as-read (low-risk write, also part of emailWriteTools)
+const emailSafeWriteTools = emailTools.filter(t =>
+  ['mark-as-read'].includes(t.name)
+);
+
 module.exports = {
   emailTools,
+  emailReadTools,
+  emailWriteTools,
+  emailSafeWriteTools,
   handleListEmails,
   handleSearchEmails,
   handleReadEmail,

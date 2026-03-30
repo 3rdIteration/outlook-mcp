@@ -4,7 +4,7 @@
 const config = require('../config');
 const { callGraphAPI } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List events handler
@@ -44,8 +44,11 @@ async function handleListEvents(args) {
     // Detect system timezone
     const systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     
-    // Format results
-    const eventList = response.value.map((event, index) => {
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+    
+    // Format results as structured JSON with field-level wrapping
+    const events = response.value.map((event) => {
       const formatDateTime = (dateTimeData) => {
         // Defensive checks: handle null/undefined and string inputs
         if (!dateTimeData) return '';
@@ -84,17 +87,27 @@ async function handleListEvents(args) {
         return `${dateTime} (${timeZone})`;
       };
 
-      const startDate = formatDateTime(event.start);
-      const endDate = formatDateTime(event.end);
-      const location = sanitizeMetadata(event.location?.displayName || 'No location');
-      
-      return `${index + 1}. ${sanitizeMetadata(event.subject)} - Location: ${location}\nStart: ${startDate}\nEnd: ${endDate}\nSummary: ${sanitizeMetadata(event.bodyPreview)}\nID: ${event.id}\n`;
-    }).join("\n");
+      return {
+        id: wrapField(event.id, boundaryToken),
+        subject: wrapField(sanitizeMetadata(event.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
+        location: wrapField(sanitizeMetadata(event.location?.displayName || 'No location'), boundaryToken),
+        start: wrapField(formatDateTime(event.start), boundaryToken),
+        end: wrapField(formatDateTime(event.end), boundaryToken),
+        bodyPreview: wrapField(sanitizeMetadata(event.bodyPreview, config.MAX_BODY_PREVIEW_LENGTH), boundaryToken)
+      };
+    });
+    
+    const payload = {
+      _boundary: boundaryToken,
+      events
+    };
+    
+    const eventList = JSON.stringify(payload, null, 2);
 
     return {
       content: [{ 
         type: "text", 
-        text: `Found ${response.value.length} events:\n\n${wrapWithBoundary(eventList, 'CALENDAR EVENTS')}`
+        text: `Found ${response.value.length} events:\n\n${wrapWithBoundary(eventList, 'CALENDAR EVENTS', boundaryToken)}`
       }]
     };
   } catch (error) {

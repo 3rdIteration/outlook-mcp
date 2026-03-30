@@ -105,8 +105,20 @@ const powerAutomateTools = [
   }
 ];
 
+// Read-only tools
+const powerAutomateReadTools = powerAutomateTools.filter(t =>
+  ['flow-list-environments', 'flow-list', 'flow-list-runs'].includes(t.name)
+);
+
+// Write tools
+const powerAutomateWriteTools = powerAutomateTools.filter(t =>
+  ['flow-run', 'flow-toggle'].includes(t.name)
+);
+
 module.exports = {
   powerAutomateTools,
+  powerAutomateReadTools,
+  powerAutomateWriteTools,
   handleListEnvironments,
   handleListFlows,
   handleRunFlow,

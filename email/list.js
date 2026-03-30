@@ -5,7 +5,7 @@ const config = require('../config');
 const { callGraphAPI, callGraphAPIPaginated } = require('../utils/graph-api');
 const { ensureAuthenticated } = require('../auth');
 const { resolveFolderPath } = require('./folder-utils');
-const { sanitizeMetadata, wrapWithBoundary } = require('../utils/metadata-sanitizer');
+const { sanitizeMetadata, wrapWithBoundary, wrapField, generateBoundaryToken } = require('../utils/metadata-sanitizer');
 
 /**
  * List emails handler
@@ -42,19 +42,43 @@ async function handleListEmails(args) {
       };
     }
     
-    // Format results
-    const emailList = response.value.map((email, index) => {
+    // Generate a shared boundary token for JSON payload and outer markers
+    const boundaryToken = generateBoundaryToken();
+    
+    // Build structured results with sanitized and field-wrapped values
+    const emails = response.value.map((email) => {
       const sender = email.from ? email.from.emailAddress : { name: 'Unknown', address: 'unknown' };
-      const date = new Date(email.receivedDateTime).toLocaleString();
-      const readStatus = email.isRead ? '' : '[UNREAD] ';
-      
-      return `${index + 1}. ${readStatus}${date} - From: ${sanitizeMetadata(sender.name)} (${sanitizeMetadata(sender.address)})\nSubject: ${sanitizeMetadata(email.subject)}\nID: ${email.id}\n`;
-    }).join("\n");
+      return {
+        emailId: wrapField(email.id, boundaryToken),
+        subject: wrapField(sanitizeMetadata(email.subject, config.MAX_SUBJECT_LENGTH), boundaryToken),
+        from: {
+          name: wrapField(sanitizeMetadata(sender.name, config.MAX_SENDER_LENGTH), boundaryToken),
+          address: wrapField(sanitizeMetadata(sender.address, config.MAX_SENDER_LENGTH), boundaryToken)
+        },
+        to: (email.toRecipients || []).map(r => ({
+          name: wrapField(sanitizeMetadata(r.emailAddress?.name || 'Unknown', config.MAX_SENDER_LENGTH), boundaryToken),
+          address: wrapField(sanitizeMetadata(r.emailAddress?.address || 'unknown', config.MAX_SENDER_LENGTH), boundaryToken)
+        })),
+        receivedDateTime: wrapField(email.receivedDateTime, boundaryToken),
+        isRead: email.isRead,
+        hasAttachments: email.hasAttachments,
+        importance: wrapField(email.importance, boundaryToken),
+        bodyPreview: wrapField(sanitizeMetadata(email.bodyPreview, config.MAX_BODY_PREVIEW_LENGTH), boundaryToken)
+      };
+    });
+    
+    // Wrap emails array in object with boundary token to prevent JSON spoofing
+    const payload = {
+      _boundary: boundaryToken,
+      emails
+    };
+    
+    const emailList = JSON.stringify(payload, null, 2);
     
     return {
       content: [{ 
         type: "text", 
-        text: `Found ${response.value.length} emails in ${folder}:\n\n${wrapWithBoundary(emailList, 'EMAIL LIST')}`
+        text: `Found ${response.value.length} emails in ${folder}:\n\n${wrapWithBoundary(emailList, 'EMAIL LIST', boundaryToken)}`
       }]
     };
   } catch (error) {

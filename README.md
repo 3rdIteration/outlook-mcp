@@ -13,13 +13,22 @@ A comprehensive MCP (Model Context Protocol) server that connects AI assistants 
 ## Directory Structure
 
 ```
-├── index.js                 # Main entry point (all tools)
-├── server.js                # Shared MCP server factory
-├── server-email.js          # Email-only server entry point
-├── server-calendar.js       # Calendar-only server entry point
-├── server-onedrive.js       # OneDrive-only server entry point
-├── server-power-automate.js # Power Automate-only server entry point
-├── config.js                # Configuration settings
+├── index.js                         # Main entry point (all tools)
+├── server.js                        # Shared MCP server factory
+├── server-email.js                  # Email server (read + write)
+├── server-email-read.js             # Email read-only server
+├── server-email-write.js            # Email write-only server
+├── server-email-safewrite.js        # Email safe-write server (mark-as-read only)
+├── server-calendar.js               # Calendar server (read + write)
+├── server-calendar-read.js          # Calendar read-only server
+├── server-calendar-write.js         # Calendar write-only server
+├── server-onedrive.js               # OneDrive server (read + write)
+├── server-onedrive-read.js          # OneDrive read-only server
+├── server-onedrive-write.js         # OneDrive write-only server
+├── server-power-automate.js         # Power Automate server (read + write)
+├── server-power-automate-read.js    # Power Automate read-only server
+├── server-power-automate-write.js   # Power Automate write-only server
+├── config.js                        # Configuration settings
 ├── auth/                    # Authentication modules
 │   ├── index.js             # Authentication exports
 │   ├── token-manager.js     # Token storage and refresh (Graph + Flow)
@@ -334,24 +343,42 @@ Add to `~/.codeium/windsurf/mcp_config.json`, or go to **Settings → Cascade �
 
 By default, `index.js` loads all 37 tools. If you only need a subset of Microsoft 365 services, you can use the **focused server entry points** instead. This reduces context window usage and avoids exposing unnecessary tools to the AI assistant.
 
-| Entry Point | Server Name | Tools | Definition Size | ~Tokens |
-|-------------|-------------|:-----:|:---------:|:-------:|
-| `index.js` | m365-assistant | 37 | 11.7 KB | ~2,934 |
-| `server-email.js` | m365-email | 18 | 6.1 KB | ~1,530 |
-| `server-calendar.js` | m365-calendar | 9 | 2.1 KB | ~533 |
-| `server-onedrive.js` | m365-onedrive | 11 | 3.1 KB | ~770 |
-| `server-power-automate.js` | m365-power-automate | 8 | 1.8 KB | ~459 |
+#### Service-level splits
 
-> **Context window note:** The "~Tokens" column shows the approximate token cost of just the tool definitions (at ~4 chars/token). Your model's context window must have room for these definitions *plus* the conversation. Recommended minimum context window: **8,192 tokens** for all tools, **4,096 tokens** for any single split server.
+| Entry Point | Server Name | Tools | Description |
+|-------------|-------------|:-----:|-------------|
+| `index.js` | m365-assistant | 37 | All tools |
+| `server-email.js` | m365-email | 18 | Email, folders, rules (read + write) |
+| `server-calendar.js` | m365-calendar | 9 | Calendar (read + write) |
+| `server-onedrive.js` | m365-onedrive | 11 | OneDrive (read + write) |
+| `server-power-automate.js` | m365-power-automate | 8 | Power Automate (read + write) |
 
-**To enable only the services you need**, add separate MCP server entries to your client config — one for each service. Simply omit any services you don't want. For example, to enable only Email and Calendar in Claude Desktop:
+#### Read/Write sub-splits
+
+Each service can be further split into **read-only** and **write-only** servers. This lets you give the LLM read access to your data without any ability to modify it, or vice versa. Email also has a **safe-write** server that only exposes mark-as-read — a low-risk write operation.
+
+| Entry Point | Server Name | Tools | Description |
+|-------------|-------------|:-----:|-------------|
+| `server-email-read.js` | m365-email-read | 11 | Read emails, folders, rules |
+| `server-email-write.js` | m365-email-write | 8 | Send, draft, mark-as-read, create folders, move emails, manage rules |
+| `server-email-safewrite.js` | m365-email-safewrite | 4 | Mark-as-read only (lowest risk) |
+| `server-calendar-read.js` | m365-calendar-read | 4 | List events |
+| `server-calendar-write.js` | m365-calendar-write | 8 | Create, accept, decline, cancel, delete events |
+| `server-onedrive-read.js` | m365-onedrive-read | 6 | List, search, download files |
+| `server-onedrive-write.js` | m365-onedrive-write | 8 | Upload, share, create folders, delete |
+| `server-power-automate-read.js` | m365-power-automate-read | 6 | List environments, flows, run history |
+| `server-power-automate-write.js` | m365-power-automate-write | 5 | Run and toggle flows |
+
+> **Tip:** You can combine read-only and write servers from different services. For example, give the LLM read access to email but full access to calendar by configuring `server-email-read.js` alongside `server-calendar.js`.
+
+**To enable only the services you need**, add separate MCP server entries to your client config — one for each service. Simply omit any services you don't want. For example, to enable read-only Email and full Calendar in Claude Desktop:
 
 ```json
 {
   "mcpServers": {
-    "m365-email": {
+    "m365-email-read": {
       "command": "node",
-      "args": ["/path/to/outlook-mcp/server-email.js"],
+      "args": ["/path/to/outlook-mcp/server-email-read.js"],
       "env": {
         "OUTLOOK_CLIENT_ID": "your-client-id",
         "OUTLOOK_CLIENT_SECRET": "your-client-secret"
@@ -372,11 +399,20 @@ By default, `index.js` loads all 37 tools. If you only need a subset of Microsof
 Each server shares the same `.env` file, credentials, and token storage — no extra configuration needed. You can also start individual servers via npm scripts:
 
 ```bash
-npm run start:email           # Email, folders, rules only
-npm run start:calendar        # Calendar only
-npm run start:onedrive        # OneDrive only
-npm run start:power-automate  # Power Automate only
-npm start                     # All tools (default)
+npm run start:email                # Email, folders, rules (read + write)
+npm run start:email:read           # Email read-only
+npm run start:email:write          # Email write-only
+npm run start:email:safewrite      # Email safe-write (mark-as-read only)
+npm run start:calendar             # Calendar (read + write)
+npm run start:calendar:read        # Calendar read-only
+npm run start:calendar:write       # Calendar write-only
+npm run start:onedrive             # OneDrive (read + write)
+npm run start:onedrive:read        # OneDrive read-only
+npm run start:onedrive:write       # OneDrive write-only
+npm run start:power-automate       # Power Automate (read + write)
+npm run start:power-automate:read  # Power Automate read-only
+npm run start:power-automate:write # Power Automate write-only
+npm start                          # All tools (default)
 ```
 
 ## Authentication
@@ -396,6 +432,25 @@ Power Automate requires a separate token with the Flow API scope. Configure addi
 - Only solution-aware flows are accessible
 - Only manual trigger flows can be run via API
 - Requires environment ID for most operations
+
+## Content Length Limits
+
+To prevent malicious or abnormally large emails from overflowing the LLM context window, all external text fields are truncated to configurable limits before being passed to the model.
+
+| Field | Default | Environment Variable |
+|-------|--------:|----------------------|
+| Subject | 100 chars | `MCP_MAX_SUBJECT_LENGTH` |
+| Sender / recipient names | 100 chars | `MCP_MAX_SENDER_LENGTH` |
+| Body preview | 500 chars | `MCP_MAX_BODY_PREVIEW_LENGTH` |
+| Full email body | 5,000 chars | `MCP_MAX_BODY_LENGTH` |
+
+Override any limit by setting the corresponding environment variable:
+
+```bash
+# In your .env file or MCP client env block:
+MCP_MAX_SUBJECT_LENGTH=200
+MCP_MAX_BODY_LENGTH=10000
+```
 
 ## Troubleshooting
 

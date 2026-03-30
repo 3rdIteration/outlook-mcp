@@ -133,8 +133,20 @@ const calendarTools = [
   }
 ];
 
+// Read-only tools
+const calendarReadTools = calendarTools.filter(t =>
+  ['list-events'].includes(t.name)
+);
+
+// Write tools
+const calendarWriteTools = calendarTools.filter(t =>
+  ['accept-event', 'decline-event', 'create-event', 'cancel-event', 'delete-event'].includes(t.name)
+);
+
 module.exports = {
   calendarTools,
+  calendarReadTools,
+  calendarWriteTools,
   handleListEvents,
   handleAcceptEvent,
   handleDeclineEvent,
